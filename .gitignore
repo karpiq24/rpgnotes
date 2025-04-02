@@ -1,0 +1,6 @@
+__pycache__/
+.env
+temp/
+context/
+venv/
+models/

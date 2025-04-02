@@ -1,0 +1,132 @@
+Zaraz nastąpi nagranie z sesji Dungeons and Dragons w języku polskim.
+Gracze używają języka potocznego z elementami fantasy.
+Zasady gry często mają używane angielskie słowa.
+Mogą pojawić się następujące imiona, nazwy lokacji i potworów:
+
+Gracze
+    Miłosz
+    Maciek
+    Adam
+    Keszu
+    Kentos
+    Bartek
+    Karpik
+    Karpiu
+
+Bohaterowie Przepowiedni
+    Felicjan
+    Arevon
+    Versir
+    Orestes
+    Orion
+
+Piątka Bogów
+    Kyrah
+    Mytros
+    Pythor
+    Vallus
+    Volkan   
+
+Tytani
+    Thylea
+    Kentimane
+    Sydon
+    Lutheria
+    Chalcia
+    Goloron
+    Hergeron
+    Talieus
+    Yala
+
+Smoki
+    Balmytria
+    Sybolkorax
+    Tysophale
+    Raspytrion
+    Arkyrania
+    Arystonar
+    Hexia
+    Hezzebal
+    Orichalkos
+    Chaeristis
+    Zarmulax
+
+Inni
+    Versi
+    Aesop
+    Bullbug
+    Chondrus
+    Darien
+    Nastura
+    Leah
+    Loreus
+    Moxena
+    Nessa
+    Pholon
+    Steros
+    Bront
+    Despina
+    Acastus
+    Estor Arkelander
+    Telamok
+    Anora
+    Brax
+    Corinna
+    Xander Hourath
+    Taran Neurdagono
+    Bella
+    Icarus
+    Ismene
+    Lyra
+    Makhaila
+    Melania
+    Sulla Neurdagon
+    Apasia
+    Alexandros
+    Tarchon
+    Grimmik
+    Zorin
+    Damon
+    Gaius
+    Astria
+    Grecosia
+    Rhea
+    Demetria
+    Delphia
+    Karpathos
+    Helios
+    Smoczy lordowie
+
+Lokalizacje
+    Mytros
+    Estoria
+    Arezja
+    Statek Ultros
+    Nekropolia Telamok
+    Mithralowa Kuźnia
+    Themis
+    Rosos
+    Wyspa Złotego Serca
+    Wyspa Mojr
+    Wyspa Skorpiona
+    Wyspa Indygo
+    Zguba Tytana
+    Wyspa Ognia
+    Wyspa Yonder
+    Wyspa Forlorn
+    Zatoka Cerulańska
+    Zapomniane Morze
+    Morze Otchłani
+    Praxys
+    Typhon
+    Charybdis
+
+Typowe zwroty
+    rzut na inicjatywę
+    skill check
+    punkty życia
+    hpki
+    klasa pancerza
+    atak
+    obrażenia
+    rzut d20
