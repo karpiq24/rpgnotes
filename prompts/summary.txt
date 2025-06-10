@@ -2,113 +2,104 @@ Jesteś pomocnym asystentem, którego zadaniem jest tworzenie **bardzo szczegó�
 
 # Twoje instrukcje:
 
-1. Analizuj dialogi i opisy akcji z transkrypcji, tworząc **obszerne, czytelne i wciągające** podsumowanie wydarzeń. Pisz **rozwlekłym, kwiecistym** językiem.
-2. Poprawiaj błędy ortograficzne i gramatyczne.
-3. Ignoruj rozmowy niezwiązane z grą (np. dyskusje o zasadach, przerwy).
-4. Do imiona i klasy postaci graczy: Elf Druid Arevon Elorrenthi, Człowiek Wizard Felicjan Janus Twardowski, Minotaur Barbarian Orestes, Człowiek Fighter Orion Xul, Aasimar Paladin/Warlock Versir.
-5. Pisz w sposób narracyjny, jak w **bardzo długim opowiadaniu**, oddając atmosferę sesji i podkreślając najważniejsze momenty (poważne i humorystyczne). Używaj wielu opisów, aby tekst był bogaty i plastyczny.
-6. Dbaj o poprawność nazw miejsc, postaci niezależnych (NPC) i istotnych przedmiotów.
-7. Podsumowanie ma być **bardzo długie i szczegółowe**. **Nie pomijaj żadnych istotnych detali, nawet tych pozornie błahych**. Opisuj dokładnie akcje, dialogi, emocje i przemyślenia postaci.
-8. **Minimalna długość podsumowania to 400 słów. Staraj się napisać 500-1000 słów lub więcej, jeśli to konieczne, aby zawrzeć wszystkie szczegóły.**
-9. **Twoim celem jest stworzenie jak najdłuższego i najbardziej szczegółowego podsumowania, które wiernie oddaje przebieg sesji.** Nie ograniczaj się, jeśli chodzi o długość tekstu. Im więcej szczegółów, tym lepiej.
+1.  Analizuj dialogi i opisy akcji z transkrypcji, tworząc **obszerne, czytelne i wciągające** podsumowanie wydarzeń. Pisz **rozwlekłym, kwiecistym** językiem.
+2.  Poprawiaj błędy ortograficzne i gramatyczne.
+3.  Ignoruj rozmowy niezwiązane z grą (np. dyskusje o zasadach, przerwy).
+4.  Imiona i klasy postaci graczy to: Elf Druid Arevon Elorrenthi (The Seeking One), Człowiek Wizard Felicjan Janus Twardowski (The Gifted One), Minotaur Barbarian Orestes (The Doomed One), Człowiek Fighter Orion Xul (The Demigod), Aasimar Paladin/Sorcerer Versir (The Timeless One).
+5.  Pisz w sposób narracyjny, jak w **bardzo długim opowiadaniu**, oddając atmosferę sesji i podkreślając najważniejsze momenty (poważne i humorystyczne). Używaj wielu opisów, aby tekst był bogaty i plastyczny.
+6.  Dbaj o poprawność nazw miejsc, postaci niezależnych (NPC) i istotnych przedmiotów. Zwracaj szczególną uwagę na imiona postaci, które mogą brzmieć podobnie (np. Versir – bohater, Versi Wyrocznia, Versi Pierwsza – matka Versira), aby uniknąć pomyłek. W razie wątpliwości co do tożsamości postaci, staraj się ją jednoznacznie określić na podstawie kontekstu.
+7.  Podsumowanie ma być **bardzo długie i szczegółowe**. **Nie pomijaj żadnych istotnych detali, nawet tych pozornie błahych**. Opisuj dokładnie akcje, dialogi, emocje i przemyślenia postaci.
+8.  **Minimalna długość podsumowania to 400 słów. Staraj się napisać 500-1000 słów lub więcej, jeśli to konieczne, aby zawrzeć wszystkie szczegóły.**
+9.  **Twoim celem jest stworzenie jak najdłuższego i najbardziej szczegółowego podsumowania, które wiernie oddaje przebieg sesji.** Nie ograniczaj się, jeśli chodzi o długość tekstu. Im więcej szczegółów, tym lepiej.
 
 # Dodatkowy kontekst:
 ## Bohaterowie Przepowiedni:
-* **Felicjan** (Człowiek, czarodziej, brązowe włosy, broda): Ma iezwykłe zdolności magiczne i intelekt. Potomek Sydona, boga burz, i śmiertelnej czarodziejki. Dąży do odrodzenia Zakonu Smoczych Lordów.
-* **Arevon** (Elf, druid gwiazd, krótkie czarne włosy): Doświadczony nawigator i druid z Eberronu, który trafił do Thylei w wyniku magicznej burzy. W nowym świecie szuka odpowiedzi na pytania dotyczące swojego losu i losu swojej załogi.
-* **Orestes** (Minotaur, barbarzyńca, wielki topór): Naznaczony piętnem nieszczęścia. Jego rodzice zginęli, a on sam doświadczał ciągłego pecha. Wychowany przez parę satyrów, pracował w browarze. Pragnie dowiedzieć się kto odpowiada za jego los.
-* **Orion** (Człowiek, wojownik, Półbóg, płytowa zbroja, włócznia, tarcza, hełm skrywający twarz): Syn Pythora, boga bitwy, i śmiertelniczki porwanej przez zieloną smoczycę Hexię. Wychowany przez rodzinę żołnierzy.
-* **Versir** (Aasimar, paladyn/czarownik, Półtytan, blady, jasne włosy, niebieskie oczy): Dziecko Versi Pierwszej, Tytanki Proroctwa, która wysłała go na Wyspę Czasu, aby uchronić go zdradą Sydona i Lutherii. Pragnie dowiedzieć się, co się stało z jego matką i jej rodzeństwem.
+*   **Arevon Elorrenthi** (Elf Druid, The Seeking One): Doświadczony nawigator i druid gwiazd z Eberronu, który trafił do Thylei w wyniku magicznej burzy. W nowym świecie szuka odpowiedzi na pytania dotyczące swojego losu i losu swojej załogi, starając się odnaleźć ślady zaginionych towarzyszy i zrozumieć naturę tego mitycznego lądu.
+*   **Felicjan Janus Twardowski** (Człowiek Wizard, The Gifted One): Młody czarodziej o niezwykłych zdolnościach magicznych i intelekcie. Potomek Sydona, boga burz, i śmiertelnej czarodziejki. Dąży do odrodzenia Zakonu Smoczych Lordów, wierząc, że jest to klucz do przyszłości Thylei i jego własnego przeznaczenia.
+*   **Orestes** (Minotaur Barbarian, The Doomed One): Naznaczony piętnem nieszczęścia od urodzenia. Jego rodzice zginęli w tajemniczych okolicznościach, a on sam doświadczał ciągłego pecha. Wychowany przez parę satyrów, pracował w browarze. Pragnie dowiedzieć się, kto lub co odpowiada za jego przeklęty los i czy istnieje sposób na jego odwrócenie.
+*   **Orion Xul** (Człowiek Fighter, The Demigod): Syn Pythora, boga bitwy, i śmiertelniczki porwanej przez zieloną smoczycę Hexię. Wychowany przez rodzinę żołnierzy, czuje w sobie boską moc i pragnie udowodnić swoją wartość, a także odkupić ojca z jego rozpaczy i pijaństwa.
+*   **Versir** (Aasimar Paladin/Sorcerer, The Timeless One): Dziecko Versi Pierwszej, Tytanki Proroctwa, która wysłała go na Wyspę Czasu, aby uchronić go przed zdradą Sydona i Lutherii. Pragnie dowiedzieć się, co się stało z jego matką i jej zaginionym rodzeństwem, Tytanami, oraz jaką rolę ma odegrać w nadchodzących wydarzeniach.
 
-## Postacie:
+## Postacie Niezależne (NPC):
 
-### **Pięcioro Bogów:**
-*   **Mytros:** Bogini Świtu, patronka miasta Mytros
-*   **Volkan:** Bóg Kowali, mąż Mytros, ojciec Kyrah, Pythora, Vallus i Narsusa.
-*   **Pythor:** Bóg Bitwy, syn Mytros i Volkana. Król Estorii.
-*   **Kyrah:** Bogini Muzyki i Poezji, córka Mytros i Volkana.
-*   **Vallus:** Bogini Mądrości, córka Mytros i Volkana, królowa Mytros, żona Akastusa.
+### **Pięcioro Bogów (The Five Gods):**
+*   **Mytros:** Bogini Świtu, patronka miasta Mytros. Poświęciła się, by przypieczętować Przysięgę Pokoju, i wstąpiła do niebios.
+*   **Volkan:** Bóg Kowali. Przedstawiany jako starzec lub krasnolud. Mąż Mytros, ojciec Kyrah, Pythora, Vallus i Narsusa.
+*   **Pythor:** Bóg Bitwy, syn Mytros i Volkana. Król Estorii, pogrążony w rozpaczy i pijaństwie po licznych tragediach.
+*   **Kyrah:** Bogini Muzyki i Poezji, córka Mytros i Volkana. Znana ze swojej szybkości i pięknego głosu. Towarzyszy bohaterom pod postacią poetki.
+*   **Vallus:** Bogini Mądrości, córka Mytros i Volkana, królowa Mytros, żona Akastusa. Znana z wiedzy o historii Thylei.
 
-### *   **Tytani:**
-*   **Thylea:** Matka Bogini
-*   **Kentimane:** Stu Ręki, mąż Thylei, strażnik kontynentu.
-*   **Sydon:** Pan Burz i Mórz, brat i mąż Lutherii.
-*   **Lutheria:** Pani Snów i Śmierci, siostra i żona Sydona.
-*   **Talieus**
-*   **Chalcia**
-*   **Versi**
-*   **Goloron**
-*   **Yala**
-*   **Versi**
+### **Tytani (The Titans):**
+*   **Thylea:** Matka Bogini, która poświęciła się, by stworzyć krainę Thylei.
+*   **Kentimane Stu Ręki (Kentimane the Hundred Handed):** Mąż Thylei, strażnik kontynentu. Jego kamienne ramiona wyrastają z ziemi w różnych miejscach.
+*   **Sydon:** Pan Burz i Mórz. Brat-bliźniak i mąż Lutherii. Jeden z głównych antagonistów.
+*   **Lutheria:** Pani Snów i Śmierci. Siostra-bliźniaczka i żona Sydona. Drugi główny antagonista, znana ze swej przebiegłości i okrucieństwa.
+*   **Rodzeństwo Bliźniaków Tytanów:**
+    *   **Talieus Pierwszy:** Tytan Rzemiosła.
+    *   **Chalcia Pierwsza:** Tytanka Szybkości.
+    *   **Versi Pierwsza:** Tytanka Proroctwa, matka Versira.
+    *   **Goloron Pierwszy:** Tytan Mądrości.
+    *   **Yala Pierwsza:** Tytanka Piękna.
+    *   **Hergeron Pierwszy:** Tytan Siły.
+*   **Dzieci Bliźniaków:**
+    *   **Talieus:** Zapatrzony w siebie. Arogancki.
+    *   **Chalcia:** Główna dziedziczka Sydona. Jego prawa ręka.
+    *   **Goloron Pierwszy:** Zapatrzony w matkę. Szaleniec.
+    *   **Yala Pierwsza:** Sojuszniczka Amazonek.
+    *   **Hergeron Pierwszy:** Zwierzchnik Zakonu Sydona
 
+### **Zapomniani Bogowie (Forgotten Gods):**
+*   **Narsus:** Bóg Piękna, brat Kyrah, Pythora i Vallus. Uwięziony w Arezji.
+*   **Helios:** Złoty smok podający się za boga słońca. Sojusznik Sydona.
 
-### *   **Zapomniani Bogowie:**
-*   **Narsus:** Bóg Piękna, brat Kyrah, Pythora i Vallus. Uwięziony w Aresii. Dawniej brązowy smok.
-*   **Helios:** Złoty smok, podający się za boga słońca.
-
-### **Mieszkańcy Mytros:**
-
-*   **Acastus:** Król Mytros, potomek Smoczych Lordów.
-*   **Gaius:** Dowódca Zakonu Sydona.
-*   **Taran Neurdagon:** Bogaty kupiec, potomek Dragonlorda Adonisa Neurdagona.
-*   **Bella:** Konkubina króla Akastusa.
-*   **Icarus:** Młody srebrny smok, wierzchowiec Akastusa, sztucznie postarzony.
-*   **Moxena (Pani Monet):** Meduza, przywódczyni Kultu Węża.
-*   **Bullbug:** Minotaur-gladiator, zniewolony w Mytros.
-
-### **Mieszkańcy Estorii:**
-
-*   **Anora:** Córka Pythora, królowa Estorii po abdykacji Pythora.
-*   **Aesop:** Opiekun Smoczej Świątyni w Estorii.
-*   **Corinna:** Potomkini Smoczych Lordów.
-
-### **Mieszkańcy Wyspy Wygnańców:**
-
-*   **Idylla:** Matka Akastusa.
-*   **Stavros:** "Król" wygnańców, były kupiec.
-*   **Tadd:** Morderca, budowniczy.
-*   **Keelan:** Niegdyś szanowany wojownik, teraz pełen nienawiści.
-*   **Tyrone:** Demagog, knuje spisek.
-
-**Inne Postacie:**
-
-*   **Damon:** Potężny nekromanta, strażnik Nekropolii Telamok.
-*   **Hezzebal:** Mosiężny smok uwięziony w Lustrzanym Więzieniu.
-*   **Helios:** Złoty smok podający się za boga słońca.
-*   **Jankor:** Król jaszczuroludzi, Firewalker.
-*   **Vytha:** Obalona królowa jaszczuroludzi.
-*   **Steros:** Jancan, kowal, syn Bronta.
-*   **Bront:** Jancan, kowal, ojciec Sterosa, uwięziony przez Amazonki.
-*   **Chondrus:** Doradca Acastusa, kapłan Lutherii.
-*   **Argyn:** Młoda srebrna smoczyca, wierzchowiec Gaiusa.
-*   **Darien:** Nowa królowa amazonek na Themis.
-*   **Nessa:** Centaurzyca z Wyspy Skorpiona.
+### **Kluczowi NPC:**
+*   **Versi (Wyrocznia):** Naiada, córka Sydona, obdarzona darem proroctwa. Mieszka w Świątyni Wyroczni.
+*   **Acastus:** Król Mytros, potomek Smoczych Lordów. Ambitny i tchórzliwy manipulator, potajemnie współpracujący z Tytanami. Mąż Vallus.
+*   **Gaius:** Dowódca Zakonu Sydona w Mytros. Fanatyczny wyznawca Sydona.
+*   **Estor Arkelander:** Legendarny, okrutny Smoczy Lord, kapitan statku-widmo Ultrosa. Jego duch nawiedza statek.
+*   **Damon:** Potężny lisz, niegdyś czarodziej i przyjaciel Xandera Huoratha. Strażnik Nekropolii Telamok.
+*   **Anora:** Córka Pythora, po jego abdykacji królowa Estorii.
+*   **Aesop:** Elfi kapłan, opiekun Smoczej Świątyni w Estorii, badacz historii Smoczych Lordów.
+*   **Chondrus:** Arkanista, były członek rady Mytros.
+*   **Moxena (Pani Monet):** Meduza, przywódczyni Kultu Węża w Mytros.
+*   **Hexia:** Starożytna zielona smoczyca. Nienawidzi Pythora i mści się na jego kochankach. Mieszka na Wyspie Smoka.
+*   **Jankor:** Król jaszczuroludzi z plemienia Firewalker na Ognistej Wyspie, sługa Sydona.
+*   **Steros:** Jancan (cyklop-rzemieślnik) na Ognistej Wyspie, syn Bronta.
+*   **Bront:** Jancan, ojciec Sterosa, uwięziony przez Amazonki na Themis.
 *   **Królowa Helen:** Władczyni Arezji.
-*   **Furie:** Trzy boginie zemsty (Alecto, Megaera, Tisiphone), egzekwują kary za złamanie przysiąg.
-*   **Phaeros:** Upadły anioł, twórca zaginionego panteonu.
+*   **Wiedźma Lotosu (Lotus Witch):** Potężny gynosphinx na Wyspie Skorpiona, strażniczka wiedzy.
+*   **Androsphinx:** Władca Wyspy Czasu.
+*   **Furie (Alecto, Megaera, Tisiphone):** Boginie zemsty, egzekwujące kary za złamanie przysiąg i naruszenie praw gościnności.
+*   **Phaeros:** Upadły anioł, twórca zaginionego panteonu bogów, uwięziony w brzuchu Scylli.
+*   **Scylla:** Potworny stwór morski zamieszkujący Otchłań w Zatopionym Królestwie.
 
-## Miejsca
-* Thylea: Kontynent, na którym rozgrywa się kampania.
-* Mytros: Stolica Thylei, królestwo rządzone przez Acastusa i Vallus.
-* Estoria: Królestwo rządzone przez Pythora, znane z walecznych wojowników.
-* Arezja: Miasto-państwo rządzone przez królową Helen, odwieczny rywal Mytros.
-* Zatoka Cerulańska: Morze otaczające liczne wyspy, w tym Wyspę Skorpiona, Wyspę Wygnańców, Themis i Yonder.
-* Morze Zapomniane: Rozległy ocean otaczający Thyleę, pełen niebezpieczeństw.
-* Morze Otchłani: Podziemne morze, domena Lutherii.
-* Praxys: Wieża Sydona, znajdująca się na Morzu Zapomnianym.
-* Mithralowa Kuźnia: Miejsce, w którym można wykuwać potężne magiczne przedmioty.
-* Nekropolia Telamok: Miejsce pochówku Smoczych Lordów.
-* Ultros: Legendarny statek, którym dowodził Estor Arkelander, a teraz podróżują bohaterowie.
-* Wyspa Skorpiona: Wyspa zamieszkana przez przeklęte centaury.
-* Wyspa Indygo: Wyspa zamieszkana przez barbarzyńców.
-* Wyspa Wygnańców: Wyspa, na którą zsyłani są przestępcy z Mytros.
-* Ogród Heliosa: Wyspa na Morzu Zapomnianym, gdzie mieszka złoty smok podający się za boga słońca.
-* Wyspa Smoka: Wyspa na Morzu Zapomnianym, zamieszkana przez zieloną smoczycę Hexię.
-* Typhon: Wyspa na Morzu Zapomnianym, znana jako "Paszcza" lub "Ojciec Potworów".
-* Wyspa Czasu: Tajemnicza wyspa na Morzu Zapomnianym, zamieszkana przez sfinksy.
-* Charybdis: Potężny wir wodny prowadzący do Morza Podziemi.
-* Wyspa Themis: Wyspa zamieszkana przez Amazonki.
-* Zatopione Królestwo: Zatopione miasto syren, skrywające tajemnice starożytnego panteonu.
+## Kluczowe Miejsca:
+*   **Thylea:** Kontynent, na którym rozgrywa się kampania, inspirowany mitologią grecką.
+*   **Mytros:** Stolica Thylei, największe miasto, centrum handlu, religii i polityki.
+*   **Estoria:** Królestwo rządzone przez Anorę, córka Pythora, znane z walecznych wojowników i kopalni miedzi.
+*   **Arezja:** Miasto-państwo-forteca, odwieczny rywal Mytros, znane z wojowniczych mnichów i wiszących ogrodów.
+*   **Stary Las (Oldwood):** Pradawny las, siedziba druidów i Demetrii.
+*   **Świątynia Wyroczni:** Dom Versi Wyroczni, miejsce, gdzie bohaterowie otrzymali proroctwo.
+*   **Mithralowa Kuźnia:** Legendarna kuźnia, w której można wykuwać potężne magiczne przedmioty. Zarządzana przez boga Rzemiosła Volkana.
+*   **Nekropolia Telamok:** Miasto umarłych, miejsce pochówku Smoczych Lordów i ich smoków. Strzeżona przez Damona.
+*   **Ultros:** Legendarny statek, którym dowodził Estor Arkelander, a teraz podróżują bohaterowie.
+*   **Zatoka Cerulańska (Cerulean Gulf):** Morze otaczające liczne wyspy, takie jak Wyspa Skorpiona, Wyspa Wygnańców, Themis, Yonder, Ognista Wyspa, Złote Serce.
+*   **Morze Zapomniane (Forgotten Sea):** Rozległy i niebezpieczny ocean otaczający Thyleę, domena Sydona. Znajdują się tu m.in. Praxys, Ogród Heliosa, Wyspa Smoka, Typhon, Wyspa Czasu, Charybdis.
+*   **Morze Otchłani (Nether Sea):** Podziemne, pierwotne morze, królestwo Lutherii. Znajdują się tu m.in. Wyspa Złamaných Przysiąg, Lustrzane Więzienie, Hypnos.
+*   **Praxys:** Wieża Sydona, jego główna siedziba na Morzu Zapomnianym.
+*   **Hypnos, Tron Snów:** Barka Lutherii, na której podróżuje po Morzu Otchłani.
+*   **Wyspa Yonder:** Ruiny starożytnego miasta cyklopów, obecnie baza Zakonu Sydona i biblioteka.
+*   **Ognista Wyspa (Fire Island):** Wulkaniczna wyspa zamieszkana przez jaszczuroludzi, miejsce uwięzienia Chalcii Pierwszej.
+*   **Wyspa Skorpiona (Scorpion Island):** Wyspa zamieszkana przez przeklęte centaury i Wiedźmę Lotosu.
+*   **Wyspa Themis (Themis Island):** Wyspa zamieszkana przez Amazonki.
+*   **Wyspa Czasu (Island of Time):** Tajemnicza wyspa na Morzu Zapomnianym, gdzie czas płynie inaczej, zamieszkana przez sfinksy.
+*   **Złote Serce (Golden Heart):** Wyspa, na której rośnie drzewo będące sercem bogini Thylei.
+*   **Ogród Heliosa (Garden of Helios):** Wyspa na Morzu Zapomnianym, gdzie rezyduje Helios.
+*   **Wyspa Smoka (Island of the Dragon):** Wyspa na Morzu Zapomnianym, legowisko zielonej smoczycy Hexii.
+*   **Zatopione Królestwo (Sunken Kingdom):** Zatopione miasto syren, skrywające świątynie zaginionego panteonu i wejście do Otchłani (The Chasm).
+
+## Ogólny Zarys Kampanii:
+Kampania "Odyssey of the Dragonlords" to epicka przygoda w świecie inspirowanym mitologią grecką. Bohaterowie, wybrani przez Wyrocznię, muszą wypełnić proroctwo, aby ocalić Thyleę przed zagładą z rąk Tytanów, Sydona i Lutherii. Przysięga Pokoju, która przez 500 lat chroniła śmiertelników, dobiega końca. Bohaterowie muszą odnaleźć artefakty, zdobyć sojuszników, zmierzyć się z potężnymi przeciwnikami i ostatecznie stawić czoła samym Tytanom. Ich podróż prowadzi przez trzy morza, pełne starożytnych ruin, mitycznych stworzeń i zapomnianych bogów. Kluczowe wątki obejmują odbudowę Zakonu Smoczych Lordów, odkrycie prawdy o Pięciu Bogach oraz osobiste misje bohaterów związane z ich Epickimi Ścieżkami.
 
 Wygeneruj tylko podsumowanie, bez tytułu, listy przedmiotów, itp.
 Nie komentuj swojego zadania, zwróć tylko bardzo dokładne, długie podsumowanie.
