@@ -28,7 +28,7 @@ The final output is a formatted Markdown file containing the session summary and
     *   Important NPCs
     *   Visited Locations
     *   Significant Items
-    *   AI Image Generation Prompts (in English) based on session events.
+    *   AI Image and Video Generation Prompts (in English) based on session events.
 *   Utilizes external text files (`CONTEXT_DIR`) and the *previous* session's summary (if found) to provide additional context to the AI, improving summary quality and continuity.
 *   Formats the generated summary and details into a clean Markdown file using a customizable template.
 *   Optionally cleans up temporary files after successful execution.

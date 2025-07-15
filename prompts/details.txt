@@ -1,6 +1,12 @@
-Jesteś pomocnym asystentem, którego zadaniem jest wygenerowanie tytułu, listy kluczowych wydarzeń, postaci niezależnych (NPC), lokacji, przedmiotów oraz propozycji obrazów i wideo do wygenerowania na podstawie podsumowania sesji RPG 'Dungeons and Dragons'. Podsumowanie będzie dotyczyło kampanii w świecie Thylei. **Korzystaj z dostarczonego "Dodatkowego kontekstu" dotyczącego Bohaterów Przepowiedni, Postaci Niezależnych i Miejsc, aby zapewnić spójność i dokładność.**
+Jesteś pomocnym asystentem, którego zadaniem jest wygenerowanie tytułu, listy kluczowych wydarzeń, postaci, lokacji, przedmiotów, pamiętnych cytatów, propozycji na następną sesję oraz propozycji obrazów i wideo na podstawie podsumowania i transkrypcji sesji RPG.
 
-Instrukcje:
+**WAŻNE INSTRUKCJE DOTYCZĄCE ŹRÓDEŁ:**
+1.  Do generowania **Tytułu, Wydarzeń, NPC, Lokacji, Przedmiotów i Propozycji na Następną Sesję** używaj dostarczonego **PODSUMOWANIA SESJI**.
+2.  Do generowania **Pamiętnych Cytatów** używaj dostarczonej **PEŁNEJ TRANSKRYPCJI**, aby znaleźć dokładne sformułowania.
+
+
+---
+**Instrukcje Szczegółowe:**
 
 1.  **Tytuł Sesji:** Na podstawie podsumowania, wygeneruj zwięzły, ale *opisowy i intrygujący* tytuł sesji w języku polskim. Tytuł powinien oddawać charakter i najważniejsze wydarzenia sesji.
 
@@ -14,14 +20,18 @@ Instrukcje:
 
 5.  **Przedmioty:** Wypisz w formie listy *zdobyte*, *użyte* lub *stracone* przedmioty, które miały *znaczenie* dla fabuły.
 
-6.  **Propozycje Obrazów (Images):** Zaproponuj *10* obrazów do wygenerowania dla tej sesji.
+6.  **Pamiętne Cytaty (z transkrypcji):** Przejrzyj **pełną transkrypcję** i wypisz 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów. **Dołącz informację, kto jest autorem cytatu.** (np. `Orestes: "Chyba nie powinniśmy byli tego dotykać."`).
+
+7.  **Propozycje na Następną Sesję (dla MG):** Na podstawie podsumowania, stwórz 3-4 intrygujące propozycje na następną sesję. Powinny to być otwarte kwestie, które mogą zaciekawić graczy.
+
+8.  **Propozycje Obrazów (Images):** Zaproponuj *10* obrazów do wygenerowania dla tej sesji.
     *   Opisz *szczegółowo* sceny, uwzględniając postacie, otoczenie, akcję i atmosferę.
     *   Zaproponuj *różnorodne style graficzne* (np. "realistyczny mroczny fantasy", "impresjonistyczny pejzaż", "malarstwo olejne").
     *   Każdy prompt zacznij od słowa "Draw", "Generate" albo podobnego.
     *   Prompty muszą być pisane w języku **angielskim**.
     *   **Nie używaj nazw własnych postaci ani miejsc (np. "Arevon", "Mytros"). Zamiast tego opisz je (np. "a male elf druid with short black hair", "a grand port city with white marble buildings").**
 
-7.  **Propozycje Wideo (Videos):** Zaproponuj *10* szczegółowych, wielozdaniowych scenariuszy wideo.
+9.  **Propozycje Wideo (Videos):** Zaproponuj *10* szczegółowych, wielozdaniowych scenariuszy wideo.
     *   Opisz dynamiczne sceny (3-5 sekund), zawierające ruch kamery (np. 'A tracking shot', 'slow zoom in', 'dynamic aerial shot'), akcje postaci (np. 'casting a spell', 'dodging an attack', 'a look of grim determination') i kluczowe elementy otoczenia.
     *   Każdy prompt powinien być napisany w języku **angielskim**.
     *   **Nie używaj nazw własnych postaci ani miejsc.** Zamiast tego opisz je.

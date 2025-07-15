@@ -74,13 +74,19 @@ def prettify_json(filepath: Path) -> str | None:
         return None
 
 def load_context_files(context_dir: Path) -> str:
-    """Loads all text files from the context directory into a single string."""
+    """Loads all text and markdown files from the context directory into a single string."""
     context_data = ""
     if context_dir.exists():
-        for file_path in context_dir.glob("*.txt"):
+        # Look for both .txt and .md files
+        file_patterns = ["*.txt", "*.md"]
+        all_files = set()
+        for pattern in file_patterns:
+            all_files.update(context_dir.glob(pattern))
+            
+        for file_path in sorted(list(all_files)): # Sort to maintain a consistent order
             try:
                 with open(file_path, "r", encoding='utf-8') as f:
-                    context_data += f.read() + "\n\n"
+                    context_data += f"--- CONTEXT FROM {file_path.name} ---\n{f.read()}\n\n"
             except Exception as e:
                 print(f"Error reading context file {file_path}: {e}")
     return context_data
@@ -97,14 +103,12 @@ def process_chat_log() -> tuple[int | None, datetime.date | None]:
         print("No session chat log found (e.g., 'session53.json').")
         return None, None
 
-    # Extract session number from the filename
     match = re.search(r'session(\d+)', newest_chat_log.name)
     if not match:
         print(f"Could not extract session number from filename: {newest_chat_log.name}")
         return None, None
     session_number = int(match.group(1))
 
-    # Extract date from JSON content
     session_date = None
     try:
         with open(newest_chat_log, 'r', encoding='utf-8') as f:
@@ -112,12 +116,8 @@ def process_chat_log() -> tuple[int | None, datetime.date | None]:
             date_str = log_data.get("archiveDate")
             if date_str:
                 session_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-            elif log_data.get("messages"):
-                timestamp_str = log_data["messages"][0].get("timestamp")
-                if timestamp_str:
-                    session_date = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')).date()
-    except (json.JSONDecodeError, ValueError, KeyError, IndexError) as e:
-        print(f"Warning: Could not extract date from chat log {newest_chat_log.name}: {e}. A fallback date will be used.")
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"Warning: Could not extract date from chat log {newest_chat_log.name}: {e}.")
 
     output_filepath = CHAT_LOG_OUTPUT_DIR / f"session{session_number}.json"
     if output_filepath.exists():
@@ -197,6 +197,7 @@ class _CustomProgressBar(tqdm):
         self.print_in_place(f"Progress: {percentage:.2f}% - Elapsed: {elapsed_time_str} - ETA: {remaining_time_str}")
 
         self._last_update_time = current_time
+
 
 def transcribe_audio():
     """
@@ -315,6 +316,8 @@ class SessionData(BaseModel):
     npcs: list[str] = Field(description="Lista najważniejszych postaci niezależnych (NPC), które pojawiły się lub odegrały kluczową rolę.")
     locations: list[str] = Field(description="Lista najważniejszych odwiedzonych lokacji.")
     items: list[str] = Field(description="Lista najważniejszych zdobytych lub użytych przedmiotów.")
+    quotes: list[str] = Field(description="Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, wraz z informacją, kto je wypowiedział. Np. 'Arevon: 'Coś tu jest nie tak.'.")
+    hooks: list[str] = Field(description="Lista 3-4 propozycji lub 'zajawek' na następną sesję, skierowanych do Mistrza Gry. Każda powinna być intrygującym pytaniem lub sytuacją wynikającą z wydarzeń tej sesji.")
     images: list[str] = Field(
         description="""Lista 10 promptów do użycia w generatorach obrazów AI, **napisanych w języku angielskim**.
                        Każdy prompt powinien zaczynać się od słowa 'Draw'.
@@ -323,30 +326,19 @@ class SessionData(BaseModel):
     )
     videos: list[str] = Field(
         description="""Lista 10 szczegółowych promptów do generowania **wideo**, **napisanych w języku angielskim**.
-                       Każdy prompt powinien opisywać krótką, dynamiczną scenę (3-5 sekund), zawierającą ruch kamery, akcje postaci i zmiany w otoczeniu.
-                       Na przykład: 'A cinematic wide shot of a mythical Greek coastline, the camera slowly pushes in on a lone warrior standing on a cliff edge, their cape billowing in the wind as a storm gathers at sea.'"""
+                       Każdy prompt powinien opisywać krótką, dynamiczną scenę (3-5 sekund), zawierającą ruch kamery, akcje postaci i zmiany w otoczeniu."""
     )
 
-
-def get_previous_summary_file(session_number: int) -> Path | None:
-    """Retrieves the filepath of the previous session's summary markdown file."""
-    previous_session_number = session_number - 1
-    if previous_session_number > 0:
-        # Glob for files matching the pattern "Sesja X - *.md"
-        potential_files = list(OUTPUT_DIR.glob(f"Sesja {previous_session_number} - *.md"))
-        if potential_files:
-            # Return the newest one if multiple exist for some reason
-            return max(potential_files, key=os.path.getmtime)
-    return None
-
-def generate_session_notes(transcript_file: Path, session_number: int) -> tuple[str, SessionData] | None:
+def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData] | None:
     """Generates a detailed summary and structured data using the Gemini API."""
     if not GEMINI_API_KEY:
         print("GEMINI_API_KEY not set in .env file. Skipping note generation.")
         return None
         
     genai.configure(api_key=GEMINI_API_KEY)
-    context_data = load_context_files(CONTEXT_DIR)
+    
+    with open(transcript_file, "r", encoding='utf-8') as f:
+        transcript_content = f.read()
 
     # --- Step 1: Generate Detailed Summary ---
     with open(SUMMARY_PROMPT_FILE, "r", encoding='utf-8') as f:
@@ -358,19 +350,21 @@ def generate_session_notes(transcript_file: Path, session_number: int) -> tuple[
     )
     
     summary_messages = []
-    if context_data:
-        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST:\n{context_data}"]})
+    
+    # Load general context from text and markdown files
+    general_context = load_context_files(CONTEXT_DIR)
+    if general_context:
+        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST OGÓLNY:\n{general_context}"]})
+        
+    # Load campaign history from the chronicle file
+    campaign_chronicle_file = OUTPUT_DIR / "_campaign.md"
+    if campaign_chronicle_file.exists():
+        print(f"Using campaign chronicle for context: {campaign_chronicle_file.name}")
+        with open(campaign_chronicle_file, "r", encoding='utf-8') as f:
+            campaign_history = f.read()
+            summary_messages.append({"role": "user", "parts": [f"KRONIKA DOTYCHCZASOWEJ KAMPANII:\n{campaign_history}"]})
 
-    previous_summary_file = get_previous_summary_file(session_number)
-    if previous_summary_file:
-        print(f"Using previous summary for context: {previous_summary_file.name}")
-        with open(previous_summary_file, "r", encoding='utf-8') as f:
-            prev_summary = f.read()
-            summary_messages.append({"role": "user", "parts": [f"PODSUMOWANIE POPRZEDNIEJ SESJI:\n{prev_summary}"]})
-
-    with open(transcript_file, "r", encoding='utf-8') as f:
-        transcript_content = f.read()
-        summary_messages.append({"role": "user", "parts": [f"TRANSKRYPT OBECNEJ SESJI:\n{transcript_content}"]})
+    summary_messages.append({"role": "user", "parts": [f"TRANSKRYPT OBECNEJ SESJI:\n{transcript_content}"]})
 
     print("Generating detailed session summary...")
     summary_response = summary_model.generate_content(
@@ -380,9 +374,9 @@ def generate_session_notes(transcript_file: Path, session_number: int) -> tuple[
     session_summary = summary_response.text
     print("Session summary generated.")
 
-    # --- Step 2: Extract Structured Details from the Summary ---
+    # --- Step 2: Extract Structured Details ---
     print("Waiting for API rate limit...")
-    time.sleep(10) # Simple delay to avoid hitting rate limits
+    time.sleep(10)
 
     with open(DETAILS_PROMPT_FILE, "r", encoding='utf-8') as f:
         details_prompt = f.read()
@@ -395,8 +389,14 @@ def generate_session_notes(transcript_file: Path, session_number: int) -> tuple[
         mode=instructor.Mode.GEMINI_JSON,
     )
 
-    print("Extracting structured details from summary...")
-    details_messages = [{"role": "user", "content": session_summary}]
+    print("Extracting structured details...")
+    details_messages = [{
+        "role": "user",
+        "content": (
+            f"PODSUMOWANIE SESJI (użyj do generowania tytułu, wydarzeń, NPC, lokacji, przedmiotów i propozycji na następną sesję):\n{session_summary}\n\n"
+            f"PEŁNA TRANSKRYPCJA (użyj TYLKO do znalezienia pamiętnych cytatów):\n{transcript_content}"
+        )
+    }]
 
     session_data = client.chat.completions.create(
         messages=details_messages,
@@ -420,17 +420,45 @@ def save_summary_file(session_summary: str, session_data: SessionData, session_n
         npcs="\n".join(f"* {npc}" for npc in session_data.npcs),
         locations="\n".join(f"* {loc}" for loc in session_data.locations),
         items="\n".join(f"* {item}" for item in session_data.items),
+        quotes="\n".join(f"* {quote}" for quote in session_data.quotes),
+        hooks="\n".join(f"* {hook}" for hook in session_data.hooks),
         images="\n".join(f"* `{image}`" for image in session_data.images),
         videos="\n".join(f"* `{video}`" for video in session_data.videos),
     )
 
-    # Sanitize title to create a valid filename
     sane_title = re.sub(r'[\\/*?:"<>|]', "", session_data.title)
     output_file = OUTPUT_DIR / f"Sesja {session_number} - {sane_title}.md"
     with open(output_file, "w", encoding='utf-8') as f:
         f.write(output)
     print(f"Session notes saved to {output_file}")
 
+def update_campaign_summary_file():
+    """Finds all session summaries and concatenates them into a single file."""
+    print("Updating campaign chronicle file...")
+    
+    session_files = list(OUTPUT_DIR.glob("Sesja [0-9]*.md"))
+    if not session_files:
+        print("No session files found to create a chronicle.")
+        return
+
+    try:
+        sorted_files = sorted(
+            session_files,
+            key=lambda f: int(re.search(r'Sesja (\d+)', f.name).group(1))
+        )
+    except (AttributeError, ValueError) as e:
+        print(f"Could not sort session files due to naming convention. Using default sort. Error: {e}")
+        sorted_files = sorted(session_files)
+
+    chronicle_file_path = OUTPUT_DIR / "_campaign.md"
+    with open(chronicle_file_path, "w", encoding='utf-8') as chronicle_f:
+        for i, file_path in enumerate(sorted_files):
+            with open(file_path, "r", encoding='utf-8') as session_f:
+                chronicle_f.write(session_f.read())
+            if i < len(sorted_files) - 1:
+                chronicle_f.write("\n\n---\n\n")
+
+    print(f"✅ Campaign chronicle updated and saved to {chronicle_file_path}")
 
 # --- Main Orchestration ---
 
@@ -446,10 +474,9 @@ def main():
         sys.exit(1)
 
     if session_date is None:
-        # Default to the most recent Monday if no date was found in the log
         today = datetime.date.today()
         session_date = today - datetime.timedelta(days=today.weekday())
-        print(f"⚠️ Could not determine date from log. Defaulting to last Monday: {session_date.strftime('%Y-%m-%d')}")
+        print(f"⚠️ Could not determine date. Defaulting to last Monday: {session_date.strftime('%Y-%m-%d')}")
 
     print(f"✅ Found Session Number: {session_number}")
     print(f"✅ Found Session Date: {session_date.strftime('%Y-%m-%d')}")
@@ -458,7 +485,7 @@ def main():
     unzip_audio()
     print("✅ Audio files are ready.")
 
-    print("\n[Step 3/5] Transcribing Audio (this may take a while)...")
+    print("\n[Step 3/5] Transcribing Audio...")
     transcribe_audio()
     print("✅ Transcription complete.")
     
@@ -470,7 +497,7 @@ def main():
     print("✅ Transcriptions combined.")
 
     print("\n[Step 5/5] Generating Session Notes with AI...")
-    notes = generate_session_notes(transcript_file, session_number)
+    notes = generate_session_notes(transcript_file)
     if notes:
         summary, details = notes
         save_summary_file(summary, details, session_number, session_date)
@@ -478,6 +505,7 @@ def main():
     else:
         print("⚠️ AI note generation was skipped.")
 
+    update_campaign_summary_file()
 
     if DELETE_TEMP_FILES:
         try:

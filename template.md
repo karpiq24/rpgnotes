@@ -18,6 +18,10 @@
 
 {events}
 
+## Pamiętne Cytaty
+
+{quotes}
+
 ## Postacie Niezależne (NPC)
 
 {npcs}
@@ -29,3 +33,7 @@
 ## Przedmioty
 
 {items}
+
+## Propozycje na Następną Sesję (Dla MG)
+
+{hooks}
