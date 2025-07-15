@@ -12,7 +12,7 @@ from pathlib import Path
 import whisper
 import instructor
 import google.generativeai as genai
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from tqdm import tqdm
 
@@ -87,37 +87,53 @@ def load_context_files(context_dir: Path) -> str:
 
 # --- Main Processing Steps ---
 
-def process_chat_log() -> int | None:
+def process_chat_log() -> tuple[int | None, datetime.date | None]:
     """
-    Finds the newest session chat log, extracts the session number from its filename,
+    Finds the newest session chat log, extracts the session number and date,
     prettifies it, and saves it to the chat log output directory.
     """
     newest_chat_log = get_newest_file(CHAT_LOG_SOURCE_DIR, "session*.json")
     if not newest_chat_log:
         print("No session chat log found (e.g., 'session53.json').")
-        return None
+        return None, None
 
-    # Extract session number from the filename (e.g., "session53.json" -> 53)
+    # Extract session number from the filename
     match = re.search(r'session(\d+)', newest_chat_log.name)
     if not match:
         print(f"Could not extract session number from filename: {newest_chat_log.name}")
-        return None
+        return None, None
     session_number = int(match.group(1))
+
+    # Extract date from JSON content
+    session_date = None
+    try:
+        with open(newest_chat_log, 'r', encoding='utf-8') as f:
+            log_data = json.load(f)
+            date_str = log_data.get("archiveDate")
+            if date_str:
+                session_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            elif log_data.get("messages"):
+                timestamp_str = log_data["messages"][0].get("timestamp")
+                if timestamp_str:
+                    session_date = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')).date()
+    except (json.JSONDecodeError, ValueError, KeyError, IndexError) as e:
+        print(f"Warning: Could not extract date from chat log {newest_chat_log.name}: {e}. A fallback date will be used.")
 
     output_filepath = CHAT_LOG_OUTPUT_DIR / f"session{session_number}.json"
     if output_filepath.exists():
         print(f"Chat log for session {session_number} already exists. Skipping processing.")
-        return session_number
+        return session_number, session_date
 
     prettified_json_string = prettify_json(newest_chat_log)
     if not prettified_json_string:
-        return None
+        return session_number, session_date
 
     with open(output_filepath, 'w', encoding='utf-8') as f:
         f.write(prettified_json_string)
     print(f"Prettified chat log saved to: {output_filepath}")
 
-    return session_number
+    return session_number, session_date
+
 
 def unzip_audio():
     """Unzips the newest FLAC zip file to the audio output directory."""
@@ -305,23 +321,12 @@ class SessionData(BaseModel):
                        Unikaj nazw własnych postaci, zamiast tego opisz ich wygląd i akcję.
                        Stosuj różnorodne style artystyczne (np. 'oil painting', 'fantasy art', 'cinematic')."""
     )
-    date: datetime.date | None = Field(default=None, description="Data sesji w formacie YYYY-MM-DD. Jeśli nie jest znana, pozostaw null.")
+    videos: list[str] = Field(
+        description="""Lista 10 szczegółowych promptów do generowania **wideo**, **napisanych w języku angielskim**.
+                       Każdy prompt powinien opisywać krótką, dynamiczną scenę (3-5 sekund), zawierającą ruch kamery, akcje postaci i zmiany w otoczeniu.
+                       Na przykład: 'A cinematic wide shot of a mythical Greek coastline, the camera slowly pushes in on a lone warrior standing on a cliff edge, their cape billowing in the wind as a storm gathers at sea.'"""
+    )
 
-    @field_validator("date", mode="before")
-    @classmethod
-    def validate_date(cls, value):
-        if not value:
-            # Default to the most recent Monday if no date is found
-            today = datetime.date.today()
-            return today - datetime.timedelta(days=today.weekday())
-        if isinstance(value, str):
-            for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
-                try:
-                    return datetime.datetime.strptime(value, fmt).date()
-                except ValueError:
-                    pass
-            raise ValueError("Incorrect date format. Expected YYYY-MM-DD or DD.MM.YYYY.")
-        return value
 
 def get_previous_summary_file(session_number: int) -> Path | None:
     """Retrieves the filepath of the previous session's summary markdown file."""
@@ -401,7 +406,7 @@ def generate_session_notes(transcript_file: Path, session_number: int) -> tuple[
     print("Session details extracted.")
     return session_summary, session_data
 
-def save_summary_file(session_summary: str, session_data: SessionData, session_number: int):
+def save_summary_file(session_summary: str, session_data: SessionData, session_number: int, session_date: datetime.date):
     """Saves the generated notes to a formatted Markdown file."""
     with open(TEMPLATE_FILE, "r", encoding='utf-8') as f:
         template = f.read()
@@ -409,16 +414,19 @@ def save_summary_file(session_summary: str, session_data: SessionData, session_n
     output = template.format(
         number=session_number,
         title=session_data.title,
-        date=session_data.date.strftime("%d.%m.%Y"),
+        date=session_date.strftime("%d.%m.%Y"),
         summary=session_summary,
         events="\n".join(f"* {event}" for event in session_data.events),
         npcs="\n".join(f"* {npc}" for npc in session_data.npcs),
         locations="\n".join(f"* {loc}" for loc in session_data.locations),
         items="\n".join(f"* {item}" for item in session_data.items),
         images="\n".join(f"* `{image}`" for image in session_data.images),
+        videos="\n".join(f"* `{video}`" for video in session_data.videos),
     )
 
-    output_file = OUTPUT_DIR / f"Sesja {session_number} - {session_data.title}.md"
+    # Sanitize title to create a valid filename
+    sane_title = re.sub(r'[\\/*?:"<>|]', "", session_data.title)
+    output_file = OUTPUT_DIR / f"Sesja {session_number} - {sane_title}.md"
     with open(output_file, "w", encoding='utf-8') as f:
         f.write(output)
     print(f"Session notes saved to {output_file}")
@@ -432,11 +440,19 @@ def main():
     print("🚀 Starting D&D Session Processing Workflow...")
 
     print("\n[Step 1/5] Processing Chat Log...")
-    session_number = process_chat_log()
+    session_number, session_date = process_chat_log()
     if session_number is None:
         print("❌ Error processing chat log. Exiting.")
         sys.exit(1)
+
+    if session_date is None:
+        # Default to the most recent Monday if no date was found in the log
+        today = datetime.date.today()
+        session_date = today - datetime.timedelta(days=today.weekday())
+        print(f"⚠️ Could not determine date from log. Defaulting to last Monday: {session_date.strftime('%Y-%m-%d')}")
+
     print(f"✅ Found Session Number: {session_number}")
+    print(f"✅ Found Session Date: {session_date.strftime('%Y-%m-%d')}")
 
     print("\n[Step 2/5] Preparing Audio Files...")
     unzip_audio()
@@ -457,7 +473,7 @@ def main():
     notes = generate_session_notes(transcript_file, session_number)
     if notes:
         summary, details = notes
-        save_summary_file(summary, details, session_number)
+        save_summary_file(summary, details, session_number, session_date)
         print("✅ AI-powered session notes have been generated and saved.")
     else:
         print("⚠️ AI note generation was skipped.")

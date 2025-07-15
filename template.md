@@ -2,7 +2,13 @@
 
 **Data:** {date}
 
+## Propozycje Obrazów
+
 {images}
+
+## Propozycje Wideo
+
+{videos}
 
 ## Podsumowanie
 
