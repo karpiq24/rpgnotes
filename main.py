@@ -273,7 +273,7 @@ def combine_transcriptions(session_number: int) -> Path | None:
     for json_file in json_files:
         try:
             # Assumes filename format like "123456-DiscordUser_1234.flac"
-            discord_user = json_file.stem.split("-", 1)[1].split("_")[0]
+            discord_user = json_file.stem.split("-", 1)[1].lstrip("_").split("_")[0]
             speaker = discord_character_mapping.get(discord_user, discord_user)
         except IndexError:
             print(f"Warning: Could not extract speaker from {json_file.name}. Using filename stem.")
@@ -283,7 +283,10 @@ def combine_transcriptions(session_number: int) -> Path | None:
             segments = json.load(f)
             for segment in segments:
                 # Filter out low-confidence or junk segments
-                if segment.get("no_speech_prob", 0.0) > 0.4 or not segment['text'].strip():
+                text = segment['text'].strip()
+                if segment.get("no_speech_prob", 0.0) > 0.3 or not text:
+                    continue
+                if text in ["...", "... ...", "Dziękuję.", "Dzień dobry.", "Ale..."]:
                     continue
                 segment["speaker"] = speaker
                 all_segments.append(segment)
