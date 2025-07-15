@@ -149,6 +149,38 @@ def unzip_audio():
     except Exception as e:
         print(f"An error occurred during unzipping: {e}")
 
+class _CustomProgressBar(tqdm):
+    """Custom progress bar to display elapsed and estimated remaining time."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._current = self.n
+        self._start_time = time.time()
+        self._last_update_time = self._start_time
+        self._iteration_times = []
+
+    def print_in_place(self, text):
+        sys.stdout.write("\r" + text)
+        sys.stdout.flush()
+
+    def update(self, n):
+        super().update(n)
+        self._current += n
+
+        current_time = time.time()
+        elapsed_time = current_time - self._start_time
+        iteration_time = current_time - self._last_update_time
+        self._iteration_times.append(iteration_time / n)
+        average_iteration_time = sum(self._iteration_times) / len(self._iteration_times)
+        remaining_items = self.total - self._current
+        estimated_remaining_time = remaining_items * average_iteration_time
+
+        elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+        remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(estimated_remaining_time))
+
+        percentage = (self._current / self.total) * 100
+        self.print_in_place(f"Progress: {percentage:.2f}% - Elapsed: {elapsed_time_str} - ETA: {remaining_time_str}")
+
+        self._last_update_time = current_time
 
 def transcribe_audio():
     """
@@ -168,6 +200,10 @@ def transcribe_audio():
     if not files_to_transcribe:
         print("All audio files already transcribed. Skipping.")
         return
+
+    # Inject custom progress bar into Whisper
+    transcribe_module = sys.modules['whisper.transcribe']
+    transcribe_module.tqdm.tqdm = _CustomProgressBar
 
     try:
         model = whisper.load_model(model_name, device=device, download_root="./models/")
@@ -264,7 +300,7 @@ class SessionData(BaseModel):
     locations: list[str] = Field(description="Lista najważniejszych odwiedzonych lokacji.")
     items: list[str] = Field(description="Lista najważniejszych zdobytych lub użytych przedmiotów.")
     images: list[str] = Field(
-        description="""Lista 3-5 promptów do użycia w generatorach obrazów AI, **napisanych w języku angielskim**.
+        description="""Lista 10 promptów do użycia w generatorach obrazów AI, **napisanych w języku angielskim**.
                        Każdy prompt powinien zaczynać się od słowa 'Draw'.
                        Unikaj nazw własnych postaci, zamiast tego opisz ich wygląd i akcję.
                        Stosuj różnorodne style artystyczne (np. 'oil painting', 'fantasy art', 'cinematic')."""
