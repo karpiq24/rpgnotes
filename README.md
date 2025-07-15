@@ -1,152 +1,162 @@
-# RPG Session Notes Automator
+# 🚀 RPG Session Notes Automator 🚀
 
-This Python script automates the process of generating detailed session notes for tabletop role-playing games (TTRPGs) run over Discord with audio recording (e.g., using Craig bot). It leverages:
+Tired of spending hours after your TTRPG sessions meticulously writing notes, trying to remember every quote, and struggling to organize plot points? **The RPG Session Notes Automator is here to revolutionize your post-game workflow!**
 
-*   **FoundryVTT Chat Logs:** Extracts session information (like session number).
-*   **Audio Recordings:** Unzips and prepares audio files (FLAC format expected).
-*   **Whisper:** Transcribes the audio recordings with speaker diarization (based on filenames and a mapping file).
-*   **Google Gemini:** Generates a comprehensive session summary and extracts key details (events, NPCs, locations, items, AI image prompts) from the transcript and optional context.
-*   **Instructor & Pydantic:** Ensures structured data extraction from the Gemini API.
+This powerful Python script leverages the magic of AI to transform your raw session recordings into beautifully formatted, detailed, and insightful Markdown notes. Go from a messy folder of audio files to a comprehensive, searchable campaign chronicle with just a few commands. Spend less time on admin and more time planning your next epic adventure!
 
-The final output is a formatted Markdown file containing the session summary and extracted details, ready for use.
+---
 
-## Features
+## ✨ Key Features
 
-*   Automatically finds the newest FoundryVTT chat log (`.json`) and audio recording (`.flac.zip`).
-*   Prettifies and saves the relevant chat log, tagged with the session number.
-*   Extracts FLAC audio files from the Craig zip archive.
-*   Transcribes multiple audio files using OpenAI's Whisper model (supports CUDA acceleration).
-*   Uses a custom initial prompt for Whisper to improve transcription quality and context.
-*   Maps Discord user IDs (from audio filenames) to character/player names using a JSON mapping file.
-*   Combines individual speaker transcripts into a single, time-sorted transcript (JSON and TXT).
-*   Filters out low-confidence or irrelevant speech segments.
-*   Leverages Google's Gemini Pro model to generate a detailed narrative summary of the session.
-*   Uses Gemini Pro with Instructor to extract structured data:
-    *   Session Title
-    *   Session Date (attempts to infer or defaults to the last Monday)
-    *   Key Events/Decisions
-    *   Important NPCs
-    *   Visited Locations
-    *   Significant Items
-    *   AI Image and Video Generation Prompts (in English) based on session events.
-*   Utilizes external text files (`CONTEXT_DIR`) and the *previous* session's summary (if found) to provide additional context to the AI, improving summary quality and continuity.
-*   Formats the generated summary and details into a clean Markdown file using a customizable template.
-*   Optionally cleans up temporary files after successful execution.
+*   **🎙️ Automated Audio Transcription**: Uses OpenAI's Whisper to accurately transcribe hours of session audio into text, complete with speaker identification.
+*   **🤖 AI-Powered Summarization**: Leverages the Gemini API to generate a narrative summary of the session, capturing the key events in a story-like format.
+*   **📊 Structured Data Extraction**: Intelligently pulls key details from the session and organizes them into structured lists:
+    *   **Major Events**: A bulleted list of the most important plot points.
+    *   **Key NPCs & Locations**: Keep track of who and where the party encountered.
+    *   **Important Items**: A log of significant loot or plot-relevant items.
+    *   **Memorable Quotes**: Never forget that hilarious one-liner or dramatic declaration again.
+    *   **Plot Hooks**: AI-generated suggestions and intriguing questions for the Game Master to use in future sessions.
+*   **🎨 AI Art & Video Prompts**: Automatically generates a list of creative, detailed prompts (in English) for AI image and video generators, perfect for creating visual aids for your campaign.
+*   **📖 Campaign Chronicle**: Automatically compiles all your session notes into a single, massive `_campaign.md` file, creating a continuous, easy-to-read history of your entire adventure.
+*   **👤 Speaker Identification**: Maps Discord user IDs to character names for clear, readable transcripts.
+*   **⚙️ Interactive Menu**: An easy-to-use command-line menu to run the full workflow, generate transcripts only, or just update the campaign chronicle.
+*   **🛠️ Smart & Resumable Workflow**: The script is designed to be efficient. It skips steps that have already been completed, remembers your progress, and manages temporary files.
 
-## Prerequisites
+---
 
-*   **Python 3.x**
-*   **Pip** (Python package installer)
-*   **NVIDIA GPU with CUDA installed** (Recommended for significantly faster Whisper transcription). The script defaults to `cuda`, but Whisper can fall back to CPU if CUDA is unavailable (will be much slower).
-*   **FFmpeg:** Whisper requires FFmpeg to be installed on your system and available in the PATH. ([Download FFmpeg](https://ffmpeg.org/download.html))
-*   **Google Cloud Project:** You need a Google Cloud project with the **Gemini API** enabled.
-*   **Google Gemini API Key:** Generate an API key for your project.
-*   **Source Files:**
-    *   FoundryVTT chat log exports (JSON format, expected to contain a title like "Session X").
-    *   Craig bot audio recordings (zipped FLAC files, like `craig-YYYYMMDD-HHMMSS.flac.zip`).
+## ⚙️ Getting Started
 
-## Setup
+Follow these steps to get the automator up and running on your system.
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/karpiq24/rpgnotes
-    cd rpgnotes
-    ```
+### Prerequisites
 
-2.  **Install Python Dependencies:**
-    Install the dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+Before you begin, ensure you have the following installed:
 
-3.  **Set up Google Cloud & Gemini:**
-    *   Go to the [Google Cloud Console](https://console.cloud.google.com/).
-    *   Create a new project or select an existing one.
-    *   Navigate to "APIs & Services" -> "Library".
-    *   Search for "Generative Language API" (or similar, the name might evolve) and enable it for your project.
-    *   Navigate to "APIs & Services" -> "Credentials".
-    *   Create an API key. **Keep this key secure!**
+1.  **Python 3.12+**: Make sure Python is installed and added to your system's PATH.
+2.  **FFmpeg**: Whisper requires FFmpeg for audio processing. You can download it from the [official FFmpeg website](https://ffmpeg.org/download.html). Ensure the `ffmpeg` executable is in your system's PATH.
+3.  **NVIDIA GPU (Recommended)**: For significantly faster transcriptions, a CUDA-enabled NVIDIA GPU is recommended. The script will fall back to using the CPU if one is not available.
+4.  **Git**: For cloning the repository.
 
-4.  **Create Configuration File (`.env`):**
-    Create a file named `.env` in the root directory of the project and populate it with the following variables, adjusting the paths and values as needed:
+### 1. Clone the Repository
+
+
+### 2. Install Dependencies
+
+Install all the required Python packages using pip:
+
+```bash
+pip install -r requirements.txt
+```
+*(Note: You will need to create a `requirements.txt` file containing all the necessary libraries like `openai-whisper`, `google-generativeai`, `pydantic`, `python-dotenv`, `tqdm`, `instructor`)*
+
+### 3. Obtain API Keys
+
+The script requires an API key for Google's Gemini to generate summaries and structured data.
+
+*   **Google Gemini API Key**:
+    *   Go to the [Google AI Studio](https://aistudio.google.com/).
+    *   Sign in and click on "**Get API key**" -> "**Create API key**".
+    *   Copy the generated key.
+
+### 4. Configure Your Environment
+
+The script is configured using a `.env` file and several configuration files in the `config` directory.
+
+1.  **Create the `.env` file**: Rename the `example.env` file to `.env`.
+
+2.  **Edit the `.env` file**: Open `.env` and fill in the required values.
 
     ```dotenv
-    # --- Directories ---
-    # Directory where final Markdown summaries will be saved
-    OUTPUT_DIR=./output
-    # Directory for temporary files (audio extraction, intermediate transcripts)
-    TEMP_DIR=./temp
-    # Directory containing raw FoundryVTT chat log JSON exports
-    CHAT_LOG_SOURCE_DIR=./source/chatlogs
-    # Directory containing raw Craig audio recording zip files (*.flac.zip)
-    AUDIO_SOURCE_DIR=./source/audio
-    # Directory containing context files (plain text .txt) for the AI
-    CONTEXT_DIR=./context
-    # Directory where Whisper models will be downloaded (optional, defaults to ./models/)
-    # WHISPER_MODEL_DIR=./models/
+    # --- REQUIRED ---
+    # The API key for the Gemini model
+    GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"
 
-    # --- File Paths ---
-    # JSON file mapping Discord User IDs (from audio filenames) to Character/Player names
-    # Example: {"123456789012345678": "Character One", "987654321098765432": "Game Master"}
-    DISCORD_MAPPING_FILE=./config/discord_mapping.json
-    # Text file containing the initial prompt for Whisper transcription
-    WHISPER_PROMPT_FILE=./config/whisper_prompt.txt
-    # Text file containing the system prompt/instructions for Gemini summary generation
-    SUMMARY_PROMPT_FILE=./config/summary_prompt.txt
-    # Text file containing the system prompt/instructions for Gemini structured detail extraction
-    DETAILS_PROMPT_FILE=./config/details_prompt.txt
-    # Markdown template file for the final session notes output
-    TEMPLATE_FILE=./config/template.md
+    # --- PATHS (modify if you want a different folder structure) ---
+    # Directory where final markdown notes will be saved
+    OUTPUT_DIR="output"
+    # Directory where your raw audio and chat logs are downloaded
+    DOWNLOADS_DIR="C:/Users/YourUser/Downloads"
+    # Directory for temporary files (transcripts, audio chunks)
+    TEMP_DIR="temp"
 
-    # --- API Keys & Models ---
-    # Your Google Gemini API Key
-    GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
-    # The specific Gemini model to use (e.g., gemini-2.5-pro-exp-03-25)
-    GEMINI_MODEL_NAME=gemini-2.5-pro-exp-03-25
+    # --- CONFIGURATION FILES ---
+    DISCORD_MAPPING_FILE="config/discord_mapping.json"
+    WHISPER_PROMPT_FILE="config/whisper_prompt.txt"
+    SUMMARY_PROMPT_FILE="config/summary_prompt.txt"
+    DETAILS_PROMPT_FILE="config/details_prompt.txt"
+    TEMPLATE_FILE="config/template.md"
+    CONTEXT_DIR="context" # Directory for supplemental campaign context
 
-    # --- Settings ---
-    # Set to "true" to delete the TEMP_DIR after successful execution, "false" to keep it
-    DELETE_TEMP_FILES=true
+    # --- MODEL SETTINGS ---
+    GEMINI_MODEL_NAME="gemini-1.5-pro-latest"
     ```
 
-5.  **Prepare Configuration Files:**
-    *   Create the directories specified in `.env` (`source/chatlogs`, `source/audio`, `config`, `context`, etc.).
-    *   Create the `discord_mapping.json` file with your Discord User ID to Name mappings. Find user IDs in the extracted FLAC filenames (e.g., `1698087471-discord_123456789012345678.flac` -> ID is `123456789012345678`).
-    *   Create the prompt files (`whisper_prompt.txt`, `summary_prompt.txt`, `details_prompt.txt`) with your desired instructions for Whisper and Gemini. Good prompts are key to good results!
-    *   Create the `template.md` file. See the `save_summary_file` function in the script for the available formatting variables (`{number}`, `{title}`, `{date}`, `{summary}`, `{events}`, `{npcs}`, `{locations}`, `{items}`, `{images}`).
-    *   (Optional) Add any relevant background information, character sheets, world lore, etc., as `.txt` files into the `CONTEXT_DIR`.
+### 5. Set Up Configuration Files
 
-## Usage
+Customize the `config` and `context` directories to match your campaign's specifics.
 
-1.  **Place Source Files:**
-    *   Put your latest FoundryVTT chat log JSON export into the `CHAT_LOG_SOURCE_DIR`.
-    *   Put your latest Craig `.flac.zip` audio recording into the `AUDIO_SOURCE_DIR`.
+*   `config/discord_mapping.json`: This is crucial for speaker identification. Map the Discord usernames found in the audio filenames to your players' character names.
+    ```json
+    {
+      "DiscordUser123": "Arevon the Brave",
+      "AnotherPlayer#4567": "Elara Nightshade",
+      "GameMaster": "Game Master"
+    }
+    ```
 
-2.  **Run the Script:**
-    Open a terminal or command prompt, navigate to the project directory, and run:
+*   `config/whisper_prompt.txt`: Add a list of unique names, places, and jargon from your campaign. This gives Whisper context and dramatically improves the accuracy of the transcription.
+
+*   `config/summary_prompt.txt` & `config/details_prompt.txt`: These are the master prompts for the Gemini AI. You can tweak them to change the tone, style, or focus of the generated notes.
+
+*   `config/template.md`: This is the Markdown template for the final notes. Customize it to change the layout, add or remove sections, and make it your own.
+
+*   `context/`: Place any `.txt` or `.md` files in this directory that contain general world lore, campaign background, or character backstories. The AI will use this information for added context when generating summaries.
+
+---
+
+## ▶️ Usage
+
+Once everything is set up, running the script is simple.
+
+1.  **Place Your Files**:
+    *   Move your latest session's chat log (e.g., `session53.json`) into your `DOWNLOADS_DIR`.
+    *   Move your session's audio recording (the `craig-*.flac.zip` file) into your `DOWNLOADS_DIR`.
+
+2.  **Run the Script**:
     ```bash
     python main.py
     ```
 
-3.  **Monitor Progress:**
-    The script will print status messages for each step:
-    *   Processing chat log
-    *   Unzipping audio
-    *   Transcribing audio (with a progress bar showing ETA)
-    *   Combining transcriptions
-    *   Generating summary and details (may take some time depending on API response)
-    *   Saving the final file
-    *   Cleaning up temporary files (if enabled)
+3.  **Choose an Option from the Menu**:
 
-4.  **Check Output:**
-    *   The final Markdown session notes will be saved in the `OUTPUT_DIR`.
-    *   Intermediate files (prettified chat log, combined transcripts) will be in `OUTPUT_DIR/_chat_log` and `OUTPUT_DIR/_transcripts`.
-    *   Temporary files (extracted audio, individual transcripts) will be in `TEMP_DIR` (and deleted if `DELETE_TEMP_FILES=true`).
+    ```
+    ==================================================
+    🚀 D&D Session Processing Workflow 🚀
+    ==================================================
+    Please choose an option:
+      [1] Start Full Workflow (Transcribe -> Generate AI Notes -> Update Chronicle)
+      [2] Run Workflow until Transcribing (Generate transcript file only)
+      [3] Regenerate Campaign Chronicle (from existing session notes)
+      [4] Exit
+    ==================================================
+    Enter your choice [1-4]:
+    ```
 
-## Notes
+---
 
-*   **Whisper Model:** The script uses the `large` Whisper model by default. Transcription quality is generally high but can vary. Model files will be downloaded on the first run to the directory specified by `WHISPER_MODEL_DIR` or the default location if not set.
-*   **API Costs:** Using the Google Gemini API incurs costs based on usage (input/output tokens). Be mindful of the length of your transcripts and the frequency of running the script.
-*   **Rate Limits:** AI APIs often have rate limits. The script includes a 10-second pause between the summary and details generation calls, but you might need to adjust this or implement more robust backoff strategies if you encounter rate limit errors.
-*   **Prompt Engineering:** The quality of the generated summary and extracted details heavily depends on the prompts provided in `summary_prompt.txt` and `details_prompt.txt`. Experiment with different instructions to get the desired output style and detail level.
-*   **Error Handling:** The script includes basic error handling, but complex issues (e.g., malformed input files, API errors) might require debugging.
+## 🗺️ The Workflow Explained
+
+Here's what happens when you run the **Full Workflow**:
+
+1.  **Initialization**: The script checks for an existing `temp` directory and asks if you want to clear it to ensure a fresh start.
+2.  **Chat Log Processing**: It finds the newest `sessionXX.json` file, extracts the session number and date, and formats it.
+3.  **Audio Preparation**: The `craig-*.flac.zip` archive is located and unzipped into the `temp/audio` directory.
+4.  **Transcription**: Each audio file is processed by Whisper. This is the most time-consuming step. The script shows a real-time progress bar with an ETA.
+5.  **Transcript Combination**: The individual transcripts are combined into a single, chronologically sorted text file, with speaker names added from your mapping file.
+6.  **AI Note Generation**:
+    *   The complete transcript and context files are sent to the Gemini API to generate a detailed summary.
+    *   The summary and transcript are then sent again to extract the structured data (NPCs, locations, quotes, etc.).
+7.  **File Creation**: The AI-generated content is formatted using the `template.md` file and saved as `Sesja XX - Title.md` in your `output` directory.
+8.  **Chronicle Update**: Finally, the script gathers all session notes in the `output` directory and compiles them into the `_campaign.md` file.
+
+You're left with a perfect set of notes and an updated campaign history, all with minimal effort

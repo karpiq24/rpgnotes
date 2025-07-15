@@ -40,7 +40,6 @@ CONTEXT_DIR = Path(os.getenv("CONTEXT_DIR"))
 # API and Model Settings
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
-DELETE_TEMP_FILES = os.getenv("DELETE_TEMP_FILES", "False").lower() == "true"
 
 # --- Setup Directories ---
 # These are subdirectories for organized output
@@ -49,12 +48,13 @@ TRANSCRIPTIONS_OUTPUT_DIR = OUTPUT_DIR / "_transcripts"
 AUDIO_OUTPUT_DIR = TEMP_DIR / "audio"
 TEMP_TRANSCRIPTIONS = TEMP_DIR / "transcriptions"
 
-# Create all necessary directories if they don't exist
-for directory in [
-    OUTPUT_DIR, TEMP_DIR, CHAT_LOG_OUTPUT_DIR, AUDIO_OUTPUT_DIR,
-    TRANSCRIPTIONS_OUTPUT_DIR, TEMP_TRANSCRIPTIONS, CONTEXT_DIR
-]:
-    directory.mkdir(parents=True, exist_ok=True)
+def setup_directories():
+    """Create all necessary directories if they don't exist."""
+    for directory in [
+        OUTPUT_DIR, TEMP_DIR, CHAT_LOG_OUTPUT_DIR, AUDIO_OUTPUT_DIR,
+        TRANSCRIPTIONS_OUTPUT_DIR, TEMP_TRANSCRIPTIONS, CONTEXT_DIR
+    ]:
+        directory.mkdir(parents=True, exist_ok=True)
 
 # --- Helper Functions ---
 
@@ -463,18 +463,16 @@ def update_campaign_summary_file():
 
     print(f"✅ Campaign chronicle updated and saved to {chronicle_file_path}")
 
-# --- Main Orchestration ---
+# --- Workflow Functions ---
 
-def main():
-    """Main function to orchestrate the entire workflow."""
+def run_transcription_workflow():
+    """Runs the workflow up to and including combining transcriptions."""
     start_time = time.time()
-    print("🚀 Starting D&D Session Processing Workflow...")
-
-    print("\n[Step 1/5] Processing Chat Log...")
+    print("\n[Step 1/4] Processing Chat Log...")
     session_number, session_date = process_chat_log()
     if session_number is None:
-        print("❌ Error processing chat log. Exiting.")
-        sys.exit(1)
+        print("❌ Error processing chat log. Aborting workflow.")
+        return
 
     if session_date is None:
         today = datetime.date.today()
@@ -484,20 +482,36 @@ def main():
     print(f"✅ Found Session Number: {session_number}")
     print(f"✅ Found Session Date: {session_date.strftime('%Y-%m-%d')}")
 
-    print("\n[Step 2/5] Preparing Audio Files...")
+    print("\n[Step 2/4] Preparing Audio Files...")
     unzip_audio()
     print("✅ Audio files are ready.")
 
-    print("\n[Step 3/5] Transcribing Audio...")
+    print("\n[Step 3/4] Transcribing Audio...")
     transcribe_audio()
     print("✅ Transcription complete.")
     
-    print("\n[Step 4/5] Combining Transcriptions...")
+    print("\n[Step 4/4] Combining Transcriptions...")
     transcript_file = combine_transcriptions(session_number)
     if not transcript_file:
-         print("❌ Error combining transcriptions. Exiting.")
-         sys.exit(1)
+         print("❌ Error combining transcriptions. Aborting workflow.")
+         return
     print("✅ Transcriptions combined.")
+    
+    end_time = time.time()
+    print(f"\n✨ Transcription workflow completed in {time.strftime('%H:%M:%S', time.gmtime(end_time - start_time))}. ✨")
+    return transcript_file, session_number, session_date
+
+
+def run_full_workflow():
+    """Runs the entire workflow, including AI generation."""
+    start_time = time.time()
+    
+    # Run the initial transcription part of the workflow
+    transcription_result = run_transcription_workflow()
+    if not transcription_result:
+        return # Abort if the first part failed
+    
+    transcript_file, session_number, session_date = transcription_result
 
     print("\n[Step 5/5] Generating Session Notes with AI...")
     notes = generate_session_notes(transcript_file)
@@ -505,20 +519,88 @@ def main():
         summary, details = notes
         save_summary_file(summary, details, session_number, session_date)
         print("✅ AI-powered session notes have been generated and saved.")
+        
+        # Update the chronicle only after successfully saving new notes
+        update_campaign_summary_file()
     else:
-        print("⚠️ AI note generation was skipped.")
-
-    update_campaign_summary_file()
-
-    if DELETE_TEMP_FILES:
-        try:
-            shutil.rmtree(TEMP_DIR)
-            print(f"\n🗑️ Temporary directory '{TEMP_DIR}' has been removed.")
-        except Exception as e:
-            print(f"Error removing temporary directory: {e}")
+        print("⚠️ AI note generation was skipped or failed.")
 
     end_time = time.time()
-    print(f"\n✨ Workflow completed in {time.strftime('%H:%M:%S', time.gmtime(end_time - start_time))}. ✨")
+    print(f"\n✨ Full workflow completed in {time.strftime('%H:%M:%S', time.gmtime(end_time - start_time))}. ✨")
+
+# --- Main Orchestration ---
+
+def handle_temp_directory():
+    """Checks for an existing temp directory and asks the user how to proceed."""
+    if TEMP_DIR.exists() and any(TEMP_DIR.iterdir()):
+        print("-" * 50)
+        print(f"⚠️  Warning: Temporary directory '{TEMP_DIR}' already contains files.")
+        print("Continuing may use old files or cause unexpected behavior.")
+        
+        while True:
+            choice = input("Do you want to delete the existing temporary directory? [y/n]: ").lower().strip()
+            if choice in ['y', 'yes']:
+                try:
+                    shutil.rmtree(TEMP_DIR)
+                    print(f"🗑️  Temporary directory '{TEMP_DIR}' has been removed.")
+                except Exception as e:
+                    print(f"❌ Error removing temporary directory: {e}")
+                    print("Please remove it manually and restart the script.")
+                    sys.exit(1)
+                break
+            elif choice in ['n', 'no']:
+                print("👍 Continuing with existing temporary files.")
+                break
+            else:
+                print("Invalid choice. Please enter 'y' or 'n'.")
+        print("-" * 50)
+
+def display_menu():
+    """Displays the main menu and handles user input."""
+    print("\n" + "="*50)
+    print("🚀 D&D Session Processing Workflow 🚀")
+    print("="*50)
+    print("Please choose an option:")
+    print("  [1] Start Full Workflow (Transcribe -> Generate AI Notes -> Update Chronicle)")
+    print("  [2] Run Workflow until Transcribing (Generate transcript file only)")
+    print("  [3] Regenerate Campaign Chronicle (from existing session notes)")
+    print("  [4] Exit")
+    print("="*50)
+    
+    while True:
+        choice = input("Enter your choice [1-4]: ").strip()
+        if choice in ['1', '2', '3', '4']:
+            return choice
+        else:
+            print("❌ Invalid choice. Please enter a number from 1 to 4.")
+
+def main():
+    """Main function to orchestrate the entire workflow via a menu."""
+    handle_temp_directory()
+    
+    # Always set up directories after handling the temp dir
+    setup_directories()
+
+    while True:
+        choice = display_menu()
+
+        if choice == '1':
+            print("\nStarting Full Workflow...")
+            run_full_workflow()
+        
+        elif choice == '2':
+            print("\nStarting Transcription-Only Workflow...")
+            run_transcription_workflow()
+
+        elif choice == '3':
+            print("\nRegenerating Campaign Chronicle...")
+            update_campaign_summary_file()
+
+        elif choice == '4':
+            print("\n👋 Exiting. Goodbye!")
+            break
+        
+        print("\nReturning to main menu...")
 
 
 if __name__ == "__main__":
