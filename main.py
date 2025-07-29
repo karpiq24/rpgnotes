@@ -357,15 +357,7 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData
     # Load general context from text and markdown files
     general_context = load_context_files(CONTEXT_DIR)
     if general_context:
-        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST OGÓLNY:\n{general_context}"]})
-        
-    # Load campaign history from the chronicle file
-    campaign_chronicle_file = OUTPUT_DIR / "_campaign.md"
-    if campaign_chronicle_file.exists():
-        print(f"Using campaign chronicle for context: {campaign_chronicle_file.name}")
-        with open(campaign_chronicle_file, "r", encoding='utf-8') as f:
-            campaign_history = f.read()
-            summary_messages.append({"role": "user", "parts": [f"KRONIKA DOTYCHCZASOWEJ KAMPANII:\n{campaign_history}"]})
+        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST KAMPANII:\n{general_context}"]})
 
     summary_messages.append({"role": "user", "parts": [f"TRANSKRYPT OBECNEJ SESJI:\n{transcript_content}"]})
 
@@ -435,34 +427,6 @@ def save_summary_file(session_summary: str, session_data: SessionData, session_n
         f.write(output)
     print(f"Session notes saved to {output_file}")
 
-def update_campaign_summary_file():
-    """Finds all session summaries and concatenates them into a single file."""
-    print("Updating campaign chronicle file...")
-    
-    session_files = list(OUTPUT_DIR.glob("Sesja [0-9]*.md"))
-    if not session_files:
-        print("No session files found to create a chronicle.")
-        return
-
-    try:
-        sorted_files = sorted(
-            session_files,
-            key=lambda f: int(re.search(r'Sesja (\d+)', f.name).group(1))
-        )
-    except (AttributeError, ValueError) as e:
-        print(f"Could not sort session files due to naming convention. Using default sort. Error: {e}")
-        sorted_files = sorted(session_files)
-
-    chronicle_file_path = OUTPUT_DIR / "_campaign.md"
-    with open(chronicle_file_path, "w", encoding='utf-8') as chronicle_f:
-        for i, file_path in enumerate(sorted_files):
-            with open(file_path, "r", encoding='utf-8') as session_f:
-                chronicle_f.write(session_f.read())
-            if i < len(sorted_files) - 1:
-                chronicle_f.write("\n\n---\n\n")
-
-    print(f"✅ Campaign chronicle updated and saved to {chronicle_file_path}")
-
 # --- Workflow Functions ---
 
 def run_transcription_workflow():
@@ -519,9 +483,6 @@ def run_full_workflow():
         summary, details = notes
         save_summary_file(summary, details, session_number, session_date)
         print("✅ AI-powered session notes have been generated and saved.")
-        
-        # Update the chronicle only after successfully saving new notes
-        update_campaign_summary_file()
     else:
         print("⚠️ AI note generation was skipped or failed.")
 
@@ -561,18 +522,17 @@ def display_menu():
     print("🚀 D&D Session Processing Workflow 🚀")
     print("="*50)
     print("Please choose an option:")
-    print("  [1] Start Full Workflow (Transcribe -> Generate AI Notes -> Update Chronicle)")
+    print("  [1] Start Full Workflow (Transcribe -> Generate AI Notes)")
     print("  [2] Run Workflow until Transcribing (Generate transcript file only)")
-    print("  [3] Regenerate Campaign Chronicle (from existing session notes)")
-    print("  [4] Exit")
+    print("  [3] Exit")
     print("="*50)
     
     while True:
         choice = input("Enter your choice [1-4]: ").strip()
-        if choice in ['1', '2', '3', '4']:
+        if choice in ['1', '2', '3']:
             return choice
         else:
-            print("❌ Invalid choice. Please enter a number from 1 to 4.")
+            print("❌ Invalid choice. Please enter a number from 1 to 3.")
 
 def main():
     """Main function to orchestrate the entire workflow via a menu."""
@@ -593,10 +553,6 @@ def main():
             run_transcription_workflow()
 
         elif choice == '3':
-            print("\nRegenerating Campaign Chronicle...")
-            update_campaign_summary_file()
-
-        elif choice == '4':
             print("\n👋 Exiting. Goodbye!")
             break
         
