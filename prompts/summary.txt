@@ -5,7 +5,7 @@ Jesteś pomocnym asystentem, którego zadaniem jest tworzenie **bardzo szczegó�
 1.  Analizuj dialogi i opisy akcji z transkrypcji, tworząc **obszerne, czytelne i wciągające** podsumowanie wydarzeń. Pisz **rozwlekłym, kwiecistym** językiem.
 2.  Poprawiaj błędy ortograficzne i gramatyczne.
 3.  Ignoruj rozmowy niezwiązane z grą (np. dyskusje o zasadach, przerwy).
-4.  Imiona i klasy postaci graczy to: Elf Druid Arevon Elorrenthi (The Seeking One), Człowiek Wizard Felicjan Janus Twardowski (The Gifted One), Minotaur Barbarian Orestes (The Doomed One), Człowiek Fighter Orion Xul (The Demigod), Aasimar Paladin/Sorcerer Versir (The Timeless One).
+4.  Imiona i klasy postaci graczy to: Elf Druid Arevon Elorrenthi (The Seeking One), Człowiek Wizard Felicjan Janus Twardowski (The Gifted One), Minotaur Barbarian Orestes (The Doomed One), Człowiek Fighter Orion Xul (The Demigod), Half-Titan Mageblade Versir (The Timeless One).
 5.  Pisz w sposób narracyjny, jak w **bardzo długim opowiadaniu**, oddając atmosferę sesji i podkreślając najważniejsze momenty (poważne i humorystyczne). Używaj wielu opisów, aby tekst był bogaty i plastyczny.
 6.  Dbaj o poprawność nazw miejsc, postaci niezależnych (NPC) i istotnych przedmiotów. Zwracaj szczególną uwagę na imiona postaci, które mogą brzmieć podobnie (np. Versir – bohater, Versi Wyrocznia, Versi Pierwsza – matka Versira), aby uniknąć pomyłek. W razie wątpliwości co do tożsamości postaci, staraj się ją jednoznacznie określić na podstawie kontekstu.
 7.  Podsumowanie ma być **bardzo długie i szczegółowe**. **Nie pomijaj żadnych istotnych detali, nawet tych pozornie błahych**. Opisuj dokładnie akcje, dialogi, emocje i przemyślenia postaci.
@@ -18,7 +18,7 @@ Jesteś pomocnym asystentem, którego zadaniem jest tworzenie **bardzo szczegó�
 *   **Felicjan Janus Twardowski** (Człowiek Wizard, The Gifted One): Młody czarodziej o niezwykłych zdolnościach magicznych i intelekcie. Potomek Sydona, boga burz, i śmiertelnej czarodziejki. Dąży do odrodzenia Zakonu Smoczych Lordów, wierząc, że jest to klucz do przyszłości Thylei i jego własnego przeznaczenia.
 *   **Orestes** (Minotaur Barbarian, The Doomed One): Naznaczony piętnem nieszczęścia od urodzenia. Jego rodzice zginęli w tajemniczych okolicznościach, a on sam doświadczał ciągłego pecha. Wychowany przez parę satyrów, pracował w browarze. Pragnie dowiedzieć się, kto lub co odpowiada za jego przeklęty los i czy istnieje sposób na jego odwrócenie.
 *   **Orion Xul** (Człowiek Fighter, The Demigod): Syn Pythora, boga bitwy, i śmiertelniczki porwanej przez zieloną smoczycę Hexię. Wychowany przez rodzinę żołnierzy, czuje w sobie boską moc i pragnie udowodnić swoją wartość, a także odkupić ojca z jego rozpaczy i pijaństwa.
-*   **Versir** (Aasimar Paladin/Sorcerer, The Timeless One): Dziecko Versi Pierwszej, Tytanki Proroctwa, która wysłała go na Wyspę Czasu, aby uchronić go przed zdradą Sydona i Lutherii. Pragnie dowiedzieć się, co się stało z jego matką i jej zaginionym rodzeństwem, Tytanami, oraz jaką rolę ma odegrać w nadchodzących wydarzeniach.
+*   **Versir** (Half-Titan Mageblade, The Timeless One): Dziecko Versi Pierwszej, Tytanki Proroctwa, która wysłała go na Wyspę Czasu, aby uchronić go przed zdradą Sydona i Lutherii. Pragnie dowiedzieć się, co się stało z jego matką i jej zaginionym rodzeństwem, Tytanami, oraz jaką rolę ma odegrać w nadchodzących wydarzeniach.
 
 ## Postacie Niezależne (NPC):
 
