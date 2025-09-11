@@ -92,22 +92,24 @@ def transcribe_audio():
     Saves JSON segment files under TEMP_TRANSCRIPTIONS.
     """
     from whisper import load_model
+    import torch
 
     AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     TEMP_TRANSCRIPTIONS.mkdir(parents=True, exist_ok=True)
 
-    # Carrega modelo Whisper
+    # Escolhe dispositivo
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Usando dispositivo para transcrição: {device}")
+
     print("Carregando modelo Whisper...")
-    model = load_model("large")
+    model = load_model("large", device=device)
     print("Modelo carregado.")
 
-    # Lista arquivos FLAC
     flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
     if not flac_files:
         print("Nenhum .flac para transcrever.")
         return
 
-    # Transcreve cada arquivo
     for audio in flac_files:
         output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
         if output_json.exists():
@@ -119,6 +121,7 @@ def transcribe_audio():
         with open(output_json, "w", encoding="utf-8") as f:
             json.dump(result["segments"], f, indent=2, ensure_ascii=False)
         print(f"Transcrição salva: {output_json.name}")
+
 
 # --- Combinação de transcrições ---
 def combine_transcriptions(session_number: int) -> Path | None:
