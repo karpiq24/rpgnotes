@@ -1,227 +1,197 @@
-Zaraz nastąpi nagranie z sesji Dungeons and Dragons w języku polskim.
-Gracze używają języka potocznego z elementami fantasy.
-Zasady gry, nazwy umiejętności, czarów oraz niektóre określenia mogą być używane w języku angielskim lub w polskim tłumaczeniu.
-Proszę zwrócić szczególną uwagę na poprawną pisownię poniższych nazw własnych, imion, terminologii oraz częstych zwrotów.
+Perfeito — aqui está a tradução completa sem nenhum termo em polonês: tudo em **português**, com equivalentes em **inglês** quando útil para a IA de transcrição.
 
-**Gracze (Przykładowe imiona, które mogą paść):**
-    Miłosz
-    Maciek
-    Adam
-    Keszu
-    Kentos
-    Bartek
-    Karpik
-    Karpiu
+---
 
-**Bohaterowie Graczy (Postacie w grze):**
-    Arevon Elorrenthi (Elf Druid, The Seeking One)
-    Felicjan Janus Twardowski (Człowiek Czarodziej/Wizard, The Gifted One)
-    Orestes (Minotaur Barbarzyńca/Barbarian, The Doomed One)
-    Orion Xul (Człowiek Wojownik/Fighter, The Demigod)
-    Versir (Aasimar Paladyn/Paladin, Czarownik/Sorcerer, The Timeless One)
+Em breve será gravada uma sessão de Dungeons and Dragons em polonês.
+Os jogadores usam linguagem coloquial com elementos de fantasia.
+Regras do jogo, nomes de perícias, magias e alguns termos podem aparecer em inglês ou na sua tradução para português/inglês.
+Por favor, preste atenção especial à ortografia correta dos nomes próprios, termos e expressões frequentes listados abaixo.
 
-**Pięcioro Bogów (The Five Gods):**
-    Kyrah (Bogini Muzyki)
-    Mytros (Bogini Świtu)
-    Pythor (Bóg Bitwy)
-    Vallus (Bogini Mądrości)
-    Volkan (Bóg Kowali)
+**Jogadores (nomes de exemplo que podem aparecer):**
+Gibby, Guilherme, Bel, Vitória, Miguel, Kaique, Fellipe, Matheus, Darian, Eric, James
 
-**Tytani (The Titans):**
-    Thylea (Matka Bogini)
-    Kentimane (Stu Ręki)
-    Sydon (Pan Burz)
-    Lutheria (Pani Snów i Śmierci)
-    Chalcia (Tytanka Szybkości)
-    Goloron (Tytan Mądrości)
-    Hergeron (Tytan Siły)
-    Talieus (Tytan Rzemiosła)
-    Yala (Tytanka Piękna)
-    Versi (Tytanka Proroctwa, matka Versira)
+**Personagens dos jogadores (personagens no jogo):**
+- Party 01
+* Elion - Naiáde Feiticeiro / Nayad Sorcerer (The Vanished One)
+* Yelena - Sátira Ladina / Satyr Rogue (The Exile)
+* Kaýrion - Eladrin Paladino / Eladrin Paladin (The Demigod Pythor)
+* Basil - Anão Feiticeiro / Dwarf Sorcerer (The Doomed One)
+* Zephyr - Aasimar Bruxo / Aasimar Warlock (The Haunted One)
+* Atlas - Aasimar Bárbaro / Aasimar Barbarian (The Masterpiece)
 
-**Smoki (Dragons):**
-    Balmytria (srebrna)
-    Sybolkorax (brązowy, dawna postać Volkana)
-    Tysophale (brązowy, dawna postać Vallus)
-    Raspytrion (brązowy, dawna postać Pythora)
-    Arkyrania (brązowy, dawna postać Kyrah)
-    Arystonar (brązowy, dawna postać Narsusa)
-    Hexia (zielona)
-    Hezzebal (mosiężny)
-    Orichalkos (mosiężny)
-    Chaeristis (miedziany)
-    Zarmulax (czerwony)
-    Icarus (srebrny, smok Acastusa)
-    Argyn (srebrna, smoczyca Gaiusa)
-    Nephele (srebrna, klon Balmytrii)
-    Ventis (miedziany)
+- Party 02
+* Adonis - Satyr Paladin / Sátiro Paladino (The Demigod Pythor)
+* Cygon - Medusa Monk / Medusa Monge (The Cursed One)
+* Psiloritis - Nymph Fighter / Ninfa Guerreiro (The Haunted One)
+* Finn - Changeling Druid / Changeling Druida (The Timeless One)
 
-**Inne Postacie Niezależne (NPCs):**
-    Versi (Wyrocznia, Najada)
-    Acastus (Król Mytros)
-    Anora (Królowa Estorii, córka Pythora)
-    Estor Arkelander (duch, były Smoczy Lord)
-    Damon (Lisz, strażnik Nekropolii)
-    Gaius (Dowódca Zakonu Sydona)
-    Chondrus (Kapłan Lutherii, doradca Acastusa)
-    Moxena (Pani Monet, Meduza)
-    Aesop (Kapłan w Estorii)
-    Bullbug (Minotaur-gladiator)
-    Darien (Królowa Amazonek)
-    Nessa (Centaurzyca)
-    Pholon (Centaur)
-    Steros (Jancan, cyklop-kowal)
-    Bront (Jancan, ojciec Sterosa)
-    Despina (Prababka Felicjana)
-    Corinna (Potomkini Smoczych Lordów)
-    Xander Hourath (Pierwszy Smoczy Lord)
-    Taran Neurdagon (Kupiec z Mytros)
-    Bella (Konkubina Acastusa)
-    Ismene
-    Lyra
-    Makhaila
-    Melania
-    Sulla Neurdagon
-    Apasia
-    Alexandros
-    Tarchon (Kapitan Acastusa)
-    Grimmik (Płatnerz w Mytros)
-    Zorin (Alchemik w Mytros)
-    Astra
-    Grecosia
-    Rhea
-    Demetria (Driada, siostra Versi Wyroczni)
-    Delphia (Najada, matka Versi Wyroczni i Demetrii)
-    Karpathos (Wampir, były Smoczy Lord)
-    Helios (Złoty smok, podający się za boga)
-    Królowa Helen (Władczyni Aresii)
-    Lotis Wiedźma (Gynosphinx na Wyspie Skorpiona)
-    Androsphinx (Władca Wyspy Czasu)
-    Furie (Alecto, Megaera, Tisiphone)
-    Phaeros (Upadły anioł)
-    Scylla (Potwór morski)
-    Jankor (Król Jaszczuroludzi)
-    Vytha (Królowa Jaszczuroludzi)
-    Smoczy Lordowie (ogólne określenie zakonu)
-    Zakroth (Minotaur watażka)
+- Party 03
+* 
 
-**Lokacje (Locations):**
-    Thylea (kontynent)
-    Mytros (miasto)
-        Świątynia Piątki Bogów (Temple of the Five)
-        Akademia (The Academy)
-        Wielki Pałac (The Great Palace)
-        Stygian Row
-        Góra Volkan (Mount Volkan)
-        Winnice Mytros (Vineyards of Mytros)
-        Kolos Pythora (Colossus of Pythor)
-    Estoria (miasto)
-        Smocza Świątynia (Dragon Shrine)
-    Arezja (miasto-państwo)
-    Statek Ultros (The Ultros)
-    Nekropolia Telamok (Necropolis of Telamok)
-    Mithralowa Kuźnia (Mithral Forge)
-    Stary Las (Oldwood)
-        Zmurszała Świątynia (Mossy Temple)
-    Świątynia Wyroczni (Temple of the Oracle)
-    Rosos (wioska)
-    Martwe Wodospady (Dead Falls)
-    Zatoka Cerulańska (Cerulean Gulf)
-        Wyspa Złotego Serca (Golden Heart Island)
-        Wyspa Mojr (Island of the Fates)
-        Wyspa Skorpiona (Scorpion Island)
-        Wyspa Indygo (Indigo Island)
-        Zguba Tytana (Titan's Folly)
-        Ognista Wyspa (Fire Island)
-        Wyspa Yonder
-        Wyspa Wygnańców (Isle of Exiles)
-        Wyspa Themis (Themis Island)
-    Morze Zapomniane (Forgotten Sea)
-        Praxys (Wieża Sydona)
-        Typhon (Paszcza)
-        Charybdis (Wir Charybdy)
-        Ogród Heliosa (Garden of Helios)
-        Wyspa Smoka (Island of the Dragon)
-        Wyspa Czasu (Island of Time)
-    Morze Otchłani (Nether Sea)
-        Hypnos (Tron Snów, barka Lutherii)
-        Wyspa Złamanych Przysiąg (Island of the Oathbreakers)
-        Lustrzane Więzienie (Mirror Prison)
-        Żelazne Sześciany (Iron Cubes)
-    Zatopione Królestwo (Sunken Kingdom)
-        Otchłań (The Chasm)
+**Os Cinco Deuses (The Five Gods):**
 
-**Potwory i Istoty (Monsters & Creatures):**
-    Cerber, Cyklop (Cyclops), Gygan, Jancan, Blemys, Hydra, Harpia (Harpy), Minotaur, Sfinks (Sphinx, Gynosphinx, Androsphinx, Hierocosphinx, Criosphinx), Gryf (Griffon), Tryton (Triton), Golem (Kamienny/Stone, Żelazny/Iron, Gliniany/Clay, Marmurowy/Marble), Szkielet (Skeleton), Ożywieniec (Zombie), Wampir (Vampire), Lisz (Lich), Smok (Dragon: Zielony/Green, Czerwony/Red, Miedziany/Copper, Brązowy/Bronze, Mosiężny/Brass, Srebrny/Silver, Złoty/Gold), Centaur, Satyr, Nimfa (Nymph: Driada/Dryad, Najada/Naiad, Oreada/Oread, Nereida/Nereid, Oceanida/Oceanid), Syrena (Siren), Meduza (Medusa, Euryale), Myrmekes, Keledone, Behemot (Behemoth), Ichthys, Nuckle, Maenada (Maenad), Kozłoludek (Goatling), Molochy (Yugoloth: Arcanaloth, Mezzoloth, Nycaloth, Ultroloth), Erynie (Erinyes), Upiór (Specter), Widmo (Wraith), Ghul (Ghoul), Peryton, Skrzekacz (Shrieker), Mantikora (Manticore).
+* Kyrah — Deusa da Música / *Goddess of Music*
+* Mytros — Deusa da Aurora / *Goddess of Dawn*
+* Pythor — Deus da Batalha / *God of War*
+* Vallus — Deusa da Sabedoria / *Goddess of Wisdom*
+* Volkan — Deus dos Ferreiros / *God of Smiths*
 
-**Przedmioty (Items):**
-    Róg Balmytrii (Horn of Balmytria)
-    Antikythera
-    Berło Rozkazodawcy (Rod of Rulership)
-    Kaduceusz (Caduceus)
-    Ambrozja (Ambrosia)
-    Prometejski Ogień (Promethean Fire)
-    Topór Xandera (Axe of Xander)
-    Pancerz Mytros (Breastplate of Mytros)
-    Tarcza Volkana (Shield of Volkan)
-    Korona Smoczych Lordów (Crown of the Dragonlords)
-    Glewia Sydona (Glaive of Sydon)
-    Kosa Lutherii (Scythe of Lutheria)
-    Młot Pythora (Pythor's Hammer)
-    Natychmiastowa Forteca (Instant Fortress)
+**Titãs (The Titans):**
 
-**Typowe zwroty i terminologia D&D (Common D&D terms):**
-    rzut na inicjatywę (initiative roll)
-    test umiejętności (skill check)
-    punkty życia (hit points)
-    hp, hpki
-    klasa pancerza (armor class, AC)
-    atak (attack)
-    obrażenia (damage)
-    rzut kością (dice roll), k20, k10, k8, k6, k4 (d20, d10, d8, d6, d4)
-    rzut obronny (saving throw)
-    przewaga (advantage)
-    utrudnienie (disadvantage)
-    atak okazyjny (opportunity attack)
-    tura (turn)
-    runda (round)
-    akcja (action)
-    akcja bonusowa (bonus action)
-    reakcja (reaction)
-    ruch (movement)
-    czar (spell)
-    komórka czaru (spell slot)
-    sztuczka (cantrip)
-    kość wytrzymałości (hit die/dice)
-    długi odpoczynek (long rest)
-    krótki odpoczynek (short rest)
-    trafienie krytyczne (critical hit)
-    bohater niezależny (NPC)
-    Mistrz Gry (DM, GM, MG)
-    karta postaci (character sheet)
-    doświadczenie, PD, exp, ikspeki (experience points, XP)
-    poziom (level)
-    inicjatywa (initiative)
-    koncentracja (concentration)
-    percepcja (perception)
-    ekwipunek (equipment)
-    lochy (dungeons)
-    zasłona (cover)
-    zaskoczenie (surprise)
-    stan (condition: np. spętany/restrained, oślepiony/blinded, zatruty/poisoned)
-    odporność (resistance)
-    niewrażliwość (immunity)
-    podatność (vulnerability)
-    profesja (proficiency)
-    proficiency bonus
-    umiejętność (skill)
-    cecha (feat)
-    atrybut (ability score: Siła/Strength, Zręczność/Dexterity, Kondycja/Constitution, Inteligencja/Intelligence, Mądrość/Wisdom, Charyzma/Charisma)
+* Thylea — Deusa Mãe / *Mother Goddess*
+* Kentimane — o dos Cem Braços / *Kentimane the Hundred-Handed*
+* Sydon — Senhor das Tempestades / *Lord of Storms*
+* Lutheria — Senhora dos Sonhos e da Morte / *Lady of Dreams and Death*
+* Chalcia — Titã(na) da Velocidade / *Titaness of Speed*
+* Goloron — Titã da Sabedoria / *Titan of Wisdom*
+* Hergeron — Titã da Força / *Titan of Strength*
+* Talieus — Titã do Ofício / *Titan of Craft*
+* Yala — Titã(na) da Beleza / *Titaness of Beauty*
+* Versi — Titã(na) da Profecia / *Titaness of Prophecy*
 
-**Rasy (Races):**
-    Człowiek (Human), Elf, Krasnolud (Dwarf), Niziołek (Halfling), Półelf (Half-elf), Półork (Half-orc), Diabelstwo (Tiefling), Aasimar, Smocze Dziecię (Dragonborn), Gnom, Centaur, Minotaur, Meduza (Medusa), Nimfa (Nymph), Satyr, Syrena (Siren).
+**Dragões (Dragons):**
 
-**Klasy (Classes):**
-    Barbarzyńca (Barbarian), Bard, Czarodziej (Wizard), Druid, Kleryk (Cleric), Łotrzyk (Rogue), Łowca (Ranger), Mnich (Monk), Paladyn (Paladin), Wojownik (Fighter), Zaklinacz (Sorcerer), Kapłan (Warlock).
+* Balmytria — prata / *silver* (antiga encarnação de Mytros)
+* Sybolkorax — bronze / *brown* (antiga encarnação de Volkan)
+* Tysophale — bronze / *brown* (antiga encarnação de Vallus)
+* Raspytrion — bronze / *brown* (antiga encarnação de Pythor)
+* Arkyrania — bronze / *brown* (antiga encarnação de Kyrah)
+* Arystonar — bronze / *brown* (antiga encarnação de Narsus)
+* Hexia — verde / *green*
+* Hezzebal — mosiço / *brass*
+* Orichalkos — mosiço / *brass*
+* Chaeristis — cobre / *copper*
+* Zarmulax — vermelho / *red*
+* Icarus — prata / *silver* (dragão de Acastus)
+* Argyn — prata / *silver* (dragoa de Gaius)
+* Nephele — prata / *silver* (clone de Balmytria)
+* Ventis — cobre / *copper*
 
-Proszę o dokładne rozpoznawanie tych terminów, nawet jeśli wymowa graczy odbiega od idealnej.
+**Outros NPCs (Personagens não-jogadores):**
+Versi (Oráculo, Naiade / *Oracle, Naiad*)
+Acastus (Rei de Mytros)
+Anora (Rainha de Estoria — filha de Pythor)
+Estor Arkelander (espírito, ex-Senhor Dragão)
+Damon (lich, guardião da Necrópole)
+Gaius (comandante da Ordem de Sydon)
+Chondrus (sacerdote/consigliere ligado a Lutheria, conselheiro de Acastus)
+Moxena (Dona das Moedas — Medusa)
+Aesop (sacerdote em Estoria)
+Bullbug (minotauro-gladiador)
+Darien (rainha das Amazonas)
+Nessa (centáurea)
+Pholon (centauro)
+Steros (Jancan — ciclope-ferreiro)
+Bront (Jancan — pai de Steros)
+Despina (ancestral de Felicjan)
+Corinna (descendente dos Senhores Dragões)
+Xander Hourath (primeiro Senhor Dragão)
+Taran Neurdagon (mercador de Mytros)
+Bella (concubina de Acastus)
+Ismene
+Lyra
+Makhaila
+Melania
+Sulla Neurdagon
+Apasia
+Alexandros
+Tarchon (capitão de Acastus)
+Grimmik (armeiro em Mytros)
+Zorin (alquimista em Mytros)
+Astra
+Grecosia
+Rhea
+Demetria (dríade — irmã do Oráculo Versi)
+Delphia (naiade — mãe de Versi e Demetria)
+Karpathos (vampiro, ex-Senhor Dragão)
+Helios (dragão dourado que se faz passar por deus)
+Rainha Helen (soberana de Arezia)
+Lotis (a bruxa — gynosphinx na Ilha do Escorpião)
+Androsphinx (governante da Ilha do Tempo)
+as Fúrias (Alecto, Megaera, Tisiphone)
+Phaeros (anjo caído)
+Scylla (monstro marinho)
+Jankor (rei dos lagarto-pessoas)
+Vytha (rainha dos lagarto-pessoas)
+Senhores Dragões (ordem)
+Zakroth (líder minotauro)
+
+**Locais (Locations):**
+
+* Thylea (continente)
+* Mytros (cidade): Templo dos Cinco Deuses / *Temple of the Five*; Academia / *The Academy*; Grande Palácio / *The Great Palace*; Stygian Row; Monte Volkan / *Mount Volkan*; Vinhedos de Mytros / *Vineyards of Mytros*; Colosso de Pythor / *Colossus of Pythor*
+* Estoria (cidade): Santuário/Templo do Dragão / *Dragon Shrine*
+* Aresia (cidade-estado)
+* Navio Ultros / *The Ultros*
+* Necrópole de Telamok / *Necropolis of Telamok*
+* Forja Mithral / *Mithral Forge*
+* Floresta Antiga / *Oldwood*: Templo Musgoso / *Mossy Temple*
+* Templo do Oráculo / *Temple of the Oracle*
+* Rosos (aldeia)
+* Cachoeiras Mortas / *Dead Falls*
+* Golfo Ceruleano / *Cerulean Gulf*: Ilha do Coração Dourado / *Golden Heart Island*, Ilha das Moiras / *Island of the Fates*, Ilha do Escorpião / *Scorpion Island*, Ilha Índigo / *Indigo Island*, Ruína do Titã / *Titan's Folly*, Ilha de Fogo / *Fire Island*, Ilha Yonder, Ilha dos Exilados / *Isle of Exiles*, Ilha Themis / *Themis Island*
+* Mar Esquecido / *Forgotten Sea*: Praxys (torre de Sydon), Typhon (a Fauce / *The Maw*), Charybdis (o redemoinho), Jardim de Helios / *Garden of Helios*, Ilha do Dragão / *Island of the Dragon*, Ilha do Tempo / *Island of Time*
+* Mar do Abismo / *Nether Sea*: Hypnos (Trono dos Sonhos — barca de Lutheria), Ilha dos Juramentos Quebrados / *Island of the Oathbreakers*, Prisão Espelhada / *Mirror Prison*, Cubos de Ferro / *Iron Cubes*
+* Reino Submerso / *Sunken Kingdom*: A Fenda / *The Chasm*
+
+**Monstros e criaturas (Monsters & Creatures):**
+Cérbero / *Cerberus*, Ciclope / *Cyclops*, Gygan, Jancan, Blemys, Hidra / *Hydra*, Harpia / *Harpy*, Minotauro / *Minotaur*, Esfinge / *Sphinx* (Gynosphinx, Androsphinx, Hierocosphinx, Criosphinx), Grifo / *Griffon*, Tritão / *Triton*, Golems (pedra/stone, ferro/iron, argila/clay, mármore/marble), Esqueleto / *Skeleton*, Zumbi / *Zombie*, Vampiro / *Vampire*, Lich, Dragão / *Dragon* (verde/green, vermelho/red, cobre/copper, bronze/bronze, latão/brass, prata/silver, dourado/gold), Centauro / *Centaur*, Sátiro / *Satyr*, Ninfa / *Nymph* (dríade/dryad, naiade/naiad, oread/oread, nereida/nereid, oceanida/oceanid), Sereia / *Siren*, Medusa / *Medusa* (Euryale), Myrmekes, Keledone, Behemoth, Ichthys, Nuckle, Maenada / *Maenad*, Goatling, Yugoloths (Arcanaloth, Mezzoloth, Nycaloth, Ultroloth), Erynie / *Erinyes*, Espectro / *Specter*, Wraith, Ghoul, Peryton, Shriekers, Mantícora / *Manticore*
+
+**Itens (Items):**
+Chifre de Balmytria / *Horn of Balmytria*; Antikythera; Cetro do Comando / *Rod of Rulership*; Caduceu / *Caduceus*; Ambrosia; Fogo Prometeico / *Promethean Fire*; Machado de Xander / *Axe of Xander*; Peitoral de Mytros / *Breastplate of Mytros*; Escudo de Volkan / *Shield of Volkan*; Coroa dos Senhores Dragões / *Crown of the Dragonlords*; Glaive de Sydon / *Glaive of Sydon*; Foice de Lutheria / *Scythe of Lutheria*; Martelo de Pythor / *Pythor's Hammer*; Fortaleza Instantânea / *Instant Fortress*
+
+**Expressões e terminologia comum de D\&D (Common D\&D terms):**
+
+* rolagem de iniciativa — *initiative roll*
+* teste de perícia — *skill check*
+* pontos de vida (HP) — *hit points*
+* classe de armadura (CA / AC) — *armor class*
+* ataque — *attack*
+* dano — *damage*
+* rolagem de dados — *dice roll* (d20, d10, d8, d6, d4)
+* teste de resistência / salvaguarda — *saving throw*
+* vantagem / desvantagem — *advantage / disadvantage*
+* ataque de oportunidade — *opportunity attack*
+* turno — *turn*
+* rodada — *round*
+* ação — *action*
+* ação bônus — *bonus action*
+* reação — *reaction*
+* movimento — *movement*
+* magias / feitiços — *spells*
+* espaço de magia — *spell slot*
+* truque — *cantrip*
+* dado de vida — *hit die*
+* descanso longo — *long rest*
+* descanso curto — *short rest*
+* acerto crítico — *critical hit*
+* NPC — *non-player character*
+* Mestre de Jogo — *DM / GM*
+* ficha de personagem — *character sheet*
+* experiência — *XP*
+* nível — *level*
+* concentração — *concentration*
+* percepção — *perception*
+* equipamento — *equipment*
+* masmorras — *dungeons*
+* cobertura — *cover*
+* surpresa — *surprise*
+* condição (ex.: restringido / *restrained*, cego / *blinded*, envenenado / *poisoned*) — *condition*
+* resistência — *resistance*
+* imunidade — *immunity*
+* vulnerabilidade — *vulnerability*
+* proficiência — *proficiency*
+* bônus de proficiência — *proficiency bonus*
+* habilidade / perícia — *skill*
+* talento — *feat*
+* atributo (Força/Strength, Destreza/Dexterity, Constituição/Constitution, Inteligência/Intelligence, Sabedoria/Wisdom, Carisma/Charisma) — *ability scores*
+
+**Raças (Races):**
+Humano / *Human*, Elfo / *Elf*, Anão / *Dwarf*, Pequenino / Halfling, Meio-elfo / *Half-elf*, Meio-orc / *Half-orc*, Tiefling, Aasimar, Dragonborn, Gnomo / *Gnome*, Centauro / *Centaur*, Minotauro / *Minotaur*, Medusa / *Medusa*, Ninfa / *Nymph*, Sátiro / *Satyr*, Sereia / *Siren*
+
+**Classes (Classes):**
+Bárbaro / *Barbarian*, Bardo / *Bard*, Mago / *Wizard*, Druida / *Druid*, Clérigo / *Cleric*, Ladino / *Rogue*, Patrulheiro / *Ranger*, Monge / *Monk*, Paladino / *Paladin*, Guerreiro / *Fighter*, Feiticeiro / *Sorcerer*, Bruxo / *Warlock*
+
+---
+
+Por favor, reconheça e transcreva com precisão esses termos, mesmo que a pronúncia dos jogadores esteja imprecisa.
