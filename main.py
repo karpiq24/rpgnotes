@@ -85,6 +85,100 @@ def setup_directories():
     ]:
         directory.mkdir(parents=True, exist_ok=True)
 
+# --- Transcrição de áudio com Whisper ---
+def transcribe_audio():
+    """
+    Transcribe all FLAC files in AUDIO_OUTPUT_DIR using Whisper.
+    Saves JSON segment files under TEMP_TRANSCRIPTIONS.
+    """
+    from whisper import load_model
+
+    AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    TEMP_TRANSCRIPTIONS.mkdir(parents=True, exist_ok=True)
+
+    # Carrega modelo Whisper
+    print("Carregando modelo Whisper...")
+    model = load_model("large")
+    print("Modelo carregado.")
+
+    # Lista arquivos FLAC
+    flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
+    if not flac_files:
+        print("Nenhum .flac para transcrever.")
+        return
+
+    # Transcreve cada arquivo
+    for audio in flac_files:
+        output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
+        if output_json.exists():
+            print(f"{audio.name} já transcrito, pulando.")
+            continue
+
+        print(f"Transcrevendo {audio.name} ...")
+        result = model.transcribe(str(audio), language="pt")
+        with open(output_json, "w", encoding="utf-8") as f:
+            json.dump(result["segments"], f, indent=2, ensure_ascii=False)
+        print(f"Transcrição salva: {output_json.name}")
+
+# --- Combinação de transcrições ---
+def combine_transcriptions(session_number: int) -> Path | None:
+    """
+    Combines individual JSON transcript files into a single JSON and TXT,
+    labels speakers based on DISCORD_MAPPING_FILE, and writes to TRANSCRIPTIONS_OUTPUT_DIR.
+    Returns the path to the combined TXT.
+    """
+    TRANSCRIPTIONS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    combined_json = TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.json"
+    combined_txt = TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.txt"
+
+    if combined_txt.exists():
+        print(f"Transcrição combinada já existe: {combined_txt.name}")
+        return combined_txt
+
+    # Carrega mapeamento Discord -> personagem
+    if DISCORD_MAPPING_FILE.exists():
+        mapping = json.loads(DISCORD_MAPPING_FILE.read_text(encoding="utf-8"))
+    else:
+        mapping = {}
+
+    # Agrega todos os segmentos
+    segments = []
+    for seg_file in sorted(TEMP_TRANSCRIPTIONS.glob("*.json")):
+        data = json.loads(seg_file.read_text(encoding="utf-8"))
+        # extrai speaker do nome do arquivo
+        stem = seg_file.stem
+        speaker_key = stem.split("-",1)[-1]
+        speaker = mapping.get(speaker_key, speaker_key)
+        for seg in data:
+            text = seg.get("text","").strip()
+            if not text: 
+                continue
+            seg["speaker"] = speaker
+            segments.append(seg)
+
+    # Ordena por tempo de início
+    segments.sort(key=lambda s: s["start"])
+
+    # Salva JSON combinado
+    with open(combined_json, "w", encoding="utf-8") as f:
+        json.dump(segments, f, indent=2, ensure_ascii=False)
+    print(f"JSON combinado salvo: {combined_json.name}")
+
+    # Salva TXT legível
+    with open(combined_txt, "w", encoding="utf-8") as f:
+        current = None
+        for seg in segments:
+            if seg["speaker"] != current:
+                f.write(f"\n\n[{seg['speaker']}]\n")
+                current = seg["speaker"]
+            f.write(seg["text"].strip() + " ")
+
+    print(f"TXT combinado salvo: {combined_txt.name}")
+    return combined_txt
+
+
+
 # --- Helper Functions ---
 def get_newest_file(directory: Path, pattern: str) -> Path | None:
     """Finds the newest file matching a pattern in a directory."""
