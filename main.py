@@ -537,25 +537,65 @@ def display_menu():
 def main():
     """Main function to orchestrate the entire workflow via a menu."""
     handle_temp_directory()
-    
-    # Always set up directories after handling the temp dir
     setup_directories()
+
+    # Pergunta idioma
+    while True:
+        lang = input("Qual o idioma da sessão? [en/pt]: ").strip().lower()
+        if lang in ["en", "pt"]:
+            break
+        print("Idioma inválido. Digite 'en' ou 'pt'.")
+
+    # Pergunta party
+    party = input("Para qual party você está narrando? (Digite o nome): ").strip()
+
+    # Lista sumários disponíveis
+    prompt_dir = Path("prompts")
+    summary_files = sorted(prompt_dir.glob("summary-*.txt"))
+    print("Sumários disponíveis:")
+    for idx, sf in enumerate(summary_files):
+        print(f"  [{idx+1}] {sf.name}")
+    while True:
+        try:
+            summary_choice = int(input(f"Escolha o sumário [1-{len(summary_files)}]: "))
+            if 1 <= summary_choice <= len(summary_files):
+                break
+        except ValueError:
+            pass
+        print("Escolha inválida.")
+    chosen_summary_file = summary_files[summary_choice-1]
+
+    # Define diretório de contexto
+    context_dir = prompt_dir / lang
+
+    # Função para carregar contexto do idioma e party
+    def load_context_for_session():
+        context_files = [context_dir / "main.txt", context_dir / "characters.txt", context_dir / "places.txt"]
+        context_data = f"PARTY: {party}\n"
+        for cf in context_files:
+            if cf.exists():
+                with open(cf, "r", encoding="utf-8") as f:
+                    context_data += f"--- {cf.name} ---\n{f.read()}\n\n"
+        return context_data
+
+    # Sobrescreve funções globais para usar contexto e sumário escolhidos
+    global SUMMARY_PROMPT_FILE, CONTEXT_DIR
+    SUMMARY_PROMPT_FILE = chosen_summary_file
+    CONTEXT_DIR = context_dir
+    global load_context_files
+    load_context_files = lambda _: load_context_for_session()
 
     while True:
         choice = display_menu()
-
         if choice == '1':
             print("\nStarting Full Workflow...")
             run_full_workflow()
-        
         elif choice == '2':
             print("\nStarting Transcription-Only Workflow...")
             run_transcription_workflow()
-
         elif choice == '3':
             print("\n👋 Exiting. Goodbye!")
             break
-        
         print("\nReturning to main menu...")
 
 
