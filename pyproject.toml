@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpgnotes"
+version = "2.0.0"
+description = "Automatizador de notas de sessões de RPG com IA"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "YBraga35", email = ""}
+]
+keywords = ["rpg", "dnd", "notes", "ai", "transcription", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Role-Playing",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Text Processing :: Markup :: Markdown"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "openai-whisper>=20250625",
+    "google-generativeai>=0.8.5",
+    "instructor[google-generativeai]>=1.9.2",
+    "python-dotenv>=1.1.1",
+    "pydantic>=2.5.0",
+    "tqdm>=4.66.1"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "black>=23.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.1"
+]
+
+[project.scripts]
+rpgnotes = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/YBraga35/rpgnotes"
+Repository = "https://github.com/YBraga35/rpgnotes.git"
+Issues = "https://github.com/YBraga35/rpgnotes/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rpgnotes*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | temp
+  | output
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "whisper.*",
+    "instructor.*", 
+    "google.generativeai.*",
+    "tqdm.*"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
