@@ -20,6 +20,8 @@ import google.generativeai as genai
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from tqdm import tqdm
+from whisper import load_model
+
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -401,10 +403,16 @@ def run_transcription_workflow():
     print("✅ Arquivos de áudio prontos para transcrição!")
     
     print("\n[Passo 3/4] Transcrição de áudio...")
-    print("⚠️ Transcrição com Whisper será implementada em breve.")
+    transcribe_audio()  # Função que carrega modelo Whisper e gera .json
+    print("✅ Transcrição concluída.")
     
     print("\n[Passo 4/4] Combinação de transcrições...")  
-    print("⚠️ Combinação de transcrições será implementada em breve.")
+    print("[Passo 4/4] Combinação de transcrições...")
+    transcript_file = combine_transcriptions(session_number)
+    if transcript_file:
+        print("✅ Transcrições combinadas.")
+    else:
+        print("❌ Erro ao combinar transcrições.")
     
     print("\n✨ Workflow de transcrição preparado! ✨")
     return session_number, session_date
