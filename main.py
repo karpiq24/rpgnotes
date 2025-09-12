@@ -5,7 +5,6 @@ RPG Session Notes Automator - Adaptado para craig.flac.zip e craig.aup.zip
 """
 import os
 import sys
-import glob
 import zipfile
 import json
 import datetime
@@ -15,7 +14,6 @@ import re
 from pathlib import Path
 
 import whisper
-import instructor
 import google.generativeai as genai
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -77,6 +75,25 @@ AVAILABLE_PARTIES = {
     }
 }
 
+def validate_required_files():
+    """Valida se arquivos essenciais existem."""
+    required_files = [
+        DISCORD_MAPPING_FILE,
+        TEMPLATE_FILE
+    ]
+    
+    missing = [f for f in required_files if not f.exists()]
+    if missing:
+        print("❌ Arquivos obrigatórios não encontrados:")
+        for f in missing:
+            print(f"   - {f}")
+        print("\n💡 Execute o setup inicial para criar os arquivos.")
+        sys.exit(1)
+
+# Adicionar no início de main():
+validate_required_files()
+
+
 def setup_directories():
     """Create all necessary directories if they don't exist."""
     for directory in [
@@ -86,148 +103,66 @@ def setup_directories():
         directory.mkdir(parents=True, exist_ok=True)
 
 # --- Transcrição de áudio com Whisper ---
-def transcribe_audio(): # Seguro
-    """Versão segura que faz fallback para CPU se GPU falhar"""
-    
-    # Primeiro tenta GPU
-    try:
-        from faster_whisper import WhisperModel
-        model = WhisperModel("small", device="cuda", compute_type="float16")
-        print("Usando GPU com faster-whisper...")
-        device_info = "GPU (faster-whisper)"
-    except Exception as gpu_error:
-        print(f"⚠️ GPU falhou: {gpu_error}")
-        try:
-            # Fallback para CPU com faster-whisper
-            model = WhisperModel("small", device="cpu", compute_type="int8")
-            print("Usando CPU com faster-whisper...")
-            device_info = "CPU (faster-whisper)"
-        except ImportError:
-            # Fallback final para whisper original
-            import whisper
-            model = whisper.load_model("small", device="cpu")
-            print("Usando CPU com whisper original...")
-            device_info = "CPU (whisper original)"
-    
-    # Resto da função igual...
 
-
-def transcribe_audio_fast(): # Rápido
-    """Versão otimizada usando faster-whisper"""
-    try:
-        from faster_whisper import WhisperModel
-        print("Usando faster-whisper para melhor performance...")
-        
-        # Modelo otimizado
-        model = WhisperModel("small", device="cuda", compute_type="float16")
-        use_faster = True
-    except ImportError:
-        print("faster-whisper não instalado, usando whisper padrão...")
-        import whisper
-        model = whisper.load_model("small", device="cuda")
-        use_faster = False
-    
-    AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    TEMP_TRANSCRIPTIONS.mkdir(parents=True, exist_ok=True)
-    
-    flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
-    total_files = len(flac_files)
-    
-    for i, audio in enumerate(flac_files, 1):
-        output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
-        if output_json.exists():
-            print(f"[{i}/{total_files}] {audio.name} já transcrito, pulando.")
-            continue
-
-        print(f"[{i}/{total_files}] Transcrevendo {audio.name}...")
-        start_time = time.time()
-        
-        try:
-            if use_faster:
-                segments, info = model.transcribe(str(audio), language="pt")
-                segments_list = [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
-            else:
-                result = model.transcribe(str(audio), language="pt")
-                segments_list = result["segments"]
-            
-            with open(output_json, "w", encoding="utf-8") as f:
-                json.dump(segments_list, f, indent=2, ensure_ascii=False)
-            
-            elapsed = time.time() - start_time
-            print(f"✅ Concluído em {elapsed:.1f}s")
-            
-        except Exception as e:
-            print(f"❌ Erro ao transcrever {audio.name}: {e}")
-
-
-def transcribe_audio_Otimizado(): # Otimizado
-    from faster_whisper import WhisperModel
-    
-    # Modelo otimizado com CTranslate2
-    model = WhisperModel("small", device="cuda", compute_type="float16")
-    
-    flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
-    
-    for audio in flac_files:
-        output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
-        if output_json.exists():
-            continue
-            
-        print(f"Transcrevendo {audio.name}...")
-        segments, info = model.transcribe(str(audio), language="pt")
-        
-        # Converte para formato compatível
-        segments_list = []
-        for segment in segments:
-            segments_list.append({
-                "start": segment.start,
-                "end": segment.end,
-                "text": segment.text
-            })
-        
-        with open(output_json, "w", encoding="utf-8") as f:
-            json.dump(segments_list, f, indent=2, ensure_ascii=False)
-
-
-
-'''
 def transcribe_audio():
     """
-    Transcribe all FLAC files in AUDIO_OUTPUT_DIR using Whisper.
-    Saves JSON segment files under TEMP_TRANSCRIPTIONS.
+    Transcribe all FLAC files in AUDIO_OUTPUT_DIR using OpenAI Whisper on GPU.
+    Falls back to CPU if GPU is unavailable or falha.
     """
-    from whisper import load_model
     import torch
+    from whisper import load_model
 
     AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     TEMP_TRANSCRIPTIONS.mkdir(parents=True, exist_ok=True)
 
-    # Escolhe dispositivo
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Usando dispositivo para transcrição: {device}")
+    print(f"🔄 Usando dispositivo para transcrição: {device}")
 
-    print("Carregando modelo Whisper...")
-    model = load_model("large", device=device)
-    print("Modelo carregado.")
+    print("Carregando modelo Whisper small...")
+    model = load_model("small", device=device)
+    print("✅ Modelo carregado.")
 
     flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
     if not flac_files:
-        print("Nenhum .flac para transcrever.")
-        return
+        print("Nenhum arquivo .flac para transcrever.")
+        return False
 
-    for audio in flac_files:
+    for i, audio in enumerate(flac_files, 1):
         output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
         if output_json.exists():
-            print(f"{audio.name} já transcrito, pulando.")
+            print(f"[{i}/{len(flac_files)}] {audio.name} já transcrito, pulando.")
             continue
 
-        print(f"Transcrevendo {audio.name} ...")
-        result = model.transcribe(str(audio), language="pt")
-        with open(output_json, "w", encoding="utf-8") as f:
-            json.dump(result["segments"], f, indent=2, ensure_ascii=False)
-        print(f"Transcrição salva: {output_json.name}")
+        print(f"[{i}/{len(flac_files)}] Transcrevendo {audio.name} ...")
+        start_time = time.time()
 
-'''
+        try:
+            result = model.transcribe(
+                str(audio),
+                language="pt",
+                fp16=(device == "cuda")  # usa FP16 na GPU para acelerar
+            )
+            segments = result["segments"]
+            # Filtra segmentos vazios
+            segments = [s for s in segments if s.get("text","").strip()]
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump(segments, f, indent=2, ensure_ascii=False)
+
+            elapsed = (time.time() - start_time) / 60
+            print(f"    ✅ Concluído em {elapsed:.1f} minutos - {len(segments)} segmentos")
+        except Exception as e:
+            print(f"    ❌ Erro ao transcrever {audio.name}: {e}")
+            # Fallback para CPU caso falhe na GPU
+            if device == "cuda":
+                print("    ⚠️ Falha na GPU, tentando CPU...")
+                return transcribe_audio()  # recursive call with CPU
+            # se já estiver em CPU, marca como vazio e continua
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump([], f)
+
+    print("✅ Transcrição de todos os arquivos concluída.")
+    return True
+
 
 def load_parties_config() -> dict:
     """Carrega configuração automatizada das parties"""
@@ -396,6 +331,140 @@ def combine_transcriptions(session_number: int) -> Path | None:
     return combined_txt
 
 
+# === AI GENERATION FUNCTIONS ===
+class SessionData(BaseModel):
+    """Pydantic model for structuring data extracted by Gemini."""
+    title: str = Field(description="Título da sessão")
+    events: list[str] = Field(description="Eventos principais")
+    npcs: list[str] = Field(description="NPCs importantes")
+    locations: list[str] = Field(description="Locais visitados")
+    items: list[str] = Field(description="Itens relevantes")
+    quotes: list[str] = Field(description="Citações memoráveis")
+    hooks: list[str] = Field(description="Ganchos para próxima sessão")
+    images: list[str] = Field(description="Prompts de imagem em inglês")
+    videos: list[str] = Field(description="Prompts de vídeo em inglês")
+
+def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData] | None:
+    import instructor
+    """Generates a detailed summary and structured data using the Gemini API."""
+    if not GEMINI_API_KEY:
+        print("GEMINI_API_KEY não configurada. Pulando geração de notas.")
+        return None
+    
+    genai.configure(api_key=GEMINI_API_KEY)
+    
+    with open(transcript_file, "r", encoding='utf-8') as f:
+        transcript_content = f.read()
+
+    if not transcript_content.strip():
+        print("❌ Arquivo de transcrição está vazio. Não é possível gerar notas.")
+        return None
+
+    # --- Step 1: Generate Detailed Summary ---
+    with open(SUMMARY_PROMPT_FILE, "r", encoding='utf-8') as f:
+        summary_prompt = f.read()
+
+    summary_model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL_NAME,
+        system_instruction=summary_prompt,
+    )
+    
+    summary_messages = []
+    
+    # Load general context from text and markdown files
+    general_context = load_context_files(CONTEXT_DIR)
+    if general_context:
+        summary_messages.append({"role": "user", "parts": [f"CONTEXTO DA CAMPANHA:\n{general_context}"]})
+
+    summary_messages.append({"role": "user", "parts": [f"TRANSCRIÇÃO DA SESSÃO:\n{transcript_content}"]})
+
+    print("Gerando sumário detalhado...")
+    summary_response = summary_model.generate_content(
+        summary_messages,
+        generation_config=genai.GenerationConfig(temperature=0.7),
+    )
+    session_summary = summary_response.text
+    print("✅ Sumário gerado.")
+
+    # --- Step 2: Extract Structured Details ---
+    print("Aguardando rate limit da API...")
+    time.sleep(10)
+
+    with open(DETAILS_PROMPT_FILE, "r", encoding='utf-8') as f:
+        details_prompt = f.read()
+
+    client = instructor.from_gemini(
+        client=genai.GenerativeModel(
+            model_name=GEMINI_MODEL_NAME,
+            system_instruction=details_prompt,
+        ),
+        mode=instructor.Mode.GEMINI_JSON,
+    )
+
+    print("Extraindo detalhes estruturados...")
+    details_messages = [{
+        "role": "user",
+        "content": (
+            f"SUMÁRIO DA SESSÃO:\n{session_summary}\n\n"
+            f"TRANSCRIÇÃO COMPLETA:\n{transcript_content}"
+        )
+    }]
+
+    session_data = client.chat.completions.create(
+        messages=details_messages,
+        response_model=SessionData,
+        max_retries=3,
+    )
+    print("✅ Detalhes extraídos.")
+    return session_summary, session_data
+
+def save_summary_file(session_summary: str, session_data: SessionData, session_number: int, session_date):
+    """Saves the generated notes to a formatted Markdown file."""
+    with open(TEMPLATE_FILE, "r", encoding='utf-8') as f:
+        template = f.read()
+
+    output = template.format(
+        number=session_number,
+        title=session_data.title,
+        date=session_date.strftime("%d.%m.%Y"),
+        summary=session_summary,
+        events="\n".join(f"* {event}" for event in session_data.events),
+        npcs="\n".join(f"* {npc}" for npc in session_data.npcs),
+        locations="\n".join(f"* {loc}" for loc in session_data.locations),
+        items="\n".join(f"* {item}" for item in session_data.items),
+        quotes="\n".join(f"* {quote}" for quote in session_data.quotes),
+        hooks="\n".join(f"* {hook}" for hook in session_data.hooks),
+        images="\n".join(f"* `{image}`" for image in session_data.images),
+        videos="\n".join(f"* `{video}`" for video in session_data.videos),
+    )
+
+    sane_title = re.sub(r'[\\/*?:"<>|]', "", session_data.title)
+    output_file = OUTPUT_DIR / f"Sessão {session_number} - {sane_title}.md"
+    with open(output_file, "w", encoding='utf-8') as f:
+        f.write(output)
+    print(f"✅ Notas da sessão salvas: {output_file}")
+
+def run_full_workflow():
+    """Executa workflow completo incluindo IA."""
+    result = run_transcription_workflow()
+    if not result:
+        return
+    
+    session_number, session_date = result
+    
+    print("\n[Passo 5/5] Geração de notas com IA...")
+    notes = generate_session_notes(
+        TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.txt"
+    )
+    
+    if notes:
+        summary, structured_data = notes
+        save_summary_file(summary, structured_data, session_number, session_date)
+        print("✅ Notas com IA geradas e salvas com sucesso.")
+    else:
+        print("⚠️ Geração de notas com IA foi pulada ou falhou.")
+    
+    print("\n✨ Workflow completo finalizado! ✨")
 
 # --- Helper Functions ---
 def get_newest_file(directory: Path, pattern: str) -> Path | None:
@@ -696,7 +765,7 @@ def display_main_menu() -> str:
 
 # === WORKFLOW SIMPLIFICADO (placeholder) ===
 def run_transcription_workflow():
-    """Executa workflow de transcrição."""
+    """Executa workflow de transcrição com tratamento de erros melhorado."""
     print("\n[Passo 1/4] Processando informações da sessão...")
     session_number, session_date = process_chat_log()
     
@@ -715,19 +784,35 @@ def run_transcription_workflow():
     print("✅ Arquivos de áudio prontos para transcrição!")
     
     print("\n[Passo 3/4] Transcrição de áudio...")
-    transcribe_audio()  # Função que carrega modelo Whisper e gera .json
-    print("✅ Transcrição concluída.")
+    success = transcribe_audio()  # Agora retorna True/False
     
-    print("\n[Passo 4/4] Combinação de transcrições...")  
-    print("[Passo 4/4] Combinação de transcrições...")
+    if not success:
+        print("❌ Erro na transcrição. Abortando workflow.")
+        return None
+    
+    print("✅ Transcrição concluída com sucesso.")
+    
+    print("\n[Passo 4/4] Combinação de transcrições...")
     transcript_file = combine_transcriptions(session_number)
-    if transcript_file:
-        print("✅ Transcrições combinadas.")
-    else:
+    if not transcript_file:
         print("❌ Erro ao combinar transcrições.")
+        return None
     
-    print("\n✨ Workflow de transcrição preparado! ✨")
+    # Verifica se o arquivo combinado tem conteúdo
+    try:
+        with open(transcript_file, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+        if not content:
+            print("❌ Arquivo de transcrição combinado está vazio.")
+            return None
+        print(f"✅ Transcrições combinadas ({len(content)} caracteres).")
+    except Exception as e:
+        print(f"❌ Erro ao verificar arquivo combinado: {e}")
+        return None
+    
+    print("\n✨ Workflow de transcrição concluído com sucesso! ✨")
     return session_number, session_date
+
 
 def run_full_workflow():
     """Executa workflow completo."""
@@ -754,8 +839,9 @@ def main():
         
         # Coleta configurações da sessão
         language = get_language_choice()
-        party_info = get_party_choice()
-        summary_template = choose_summary_template()
+        party_info = get_party_choice_automated(language)
+        summary_template = choose_template_automated(party_info) or choose_summary_template()
+
         
         print(f"\n📋 Configuração:")
         print(f"   Idioma: {language}")
