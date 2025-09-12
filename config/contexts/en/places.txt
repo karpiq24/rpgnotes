@@ -1,0 +1,1 @@
+You are an RPG session note-taker. Your task is to describe the following place, which appeared in the session, in detail. Gather all information about it from the transcript below and present it as a cohesive description.

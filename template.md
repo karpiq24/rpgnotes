@@ -1,39 +1,39 @@
-# Sesja {number}: {title}
+# Sessão {number}: {title}
 
 **Data:** {date}
 
-## Propozycje Obrazów
+## Propostas de Imagens
 
 {images}
 
-## Propozycje Wideo
+## Propostas de Vídeo
 
 {videos}
 
-## Podsumowanie
+## Resumo
 
 {summary}
 
-## Kluczowe wydarzenia / decyzje
+## Eventos / Decisões-Chave
 
 {events}
 
-## Pamiętne Cytaty
+## Citações Memoráveis
 
 {quotes}
 
-## Postacie Niezależne (NPC)
+## Personagens Não Jogadores (NPCs)
 
 {npcs}
 
-## Lokacje
+## Localizações
 
 {locations}
 
-## Przedmioty
+## Itens
 
 {items}
 
-## Propozycje na Następną Sesję (Dla MG)
+## Propostas para a Próxima Sessão (Para o Mestre)
 
 {hooks}

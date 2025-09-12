@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+# main.py - Versão adaptada para seus arquivos
+"""
+RPG Session Notes Automator - Adaptado para craig.flac.zip e craig.aup.zip
+"""
 import os
 import sys
-import glob
 import zipfile
 import json
 import datetime
@@ -10,43 +14,85 @@ import re
 from pathlib import Path
 
 import whisper
-import instructor
 import google.generativeai as genai
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from tqdm import tqdm
+from whisper import load_model
+
 
 # Load environment variables from a .env file
 load_dotenv()
 
 # --- Configuration (loaded from .env file) ---
-# Main directories
-OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR"))
-TEMP_DIR = Path(os.getenv("TEMP_DIR"))
-DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR"))
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "./output"))
+TEMP_DIR = Path(os.getenv("TEMP_DIR", "./temp"))
+DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", "./downloads"))
 
-# Source directories are now the same
+# Source directories
 CHAT_LOG_SOURCE_DIR = DOWNLOADS_DIR
 AUDIO_SOURCE_DIR = DOWNLOADS_DIR
 
 # Configuration files and context
-DISCORD_MAPPING_FILE = Path(os.getenv("DISCORD_MAPPING_FILE"))
-WHISPER_PROMPT_FILE = Path(os.getenv("WHISPER_PROMPT_FILE"))
-SUMMARY_PROMPT_FILE = Path(os.getenv("SUMMARY_PROMPT_FILE"))
-DETAILS_PROMPT_FILE = Path(os.getenv("DETAILS_PROMPT_FILE"))
-TEMPLATE_FILE = Path(os.getenv("TEMPLATE_FILE"))
-CONTEXT_DIR = Path(os.getenv("CONTEXT_DIR"))
+DISCORD_MAPPING_FILE = Path(os.getenv("DISCORD_MAPPING_FILE", "./discord_speaker_mapping.json"))
+WHISPER_PROMPT_FILE = Path(os.getenv("WHISPER_PROMPT_FILE", "./prompts/whisper.txt"))
+SUMMARY_PROMPT_FILE = Path(os.getenv("SUMMARY_PROMPT_FILE", "./prompts/summary-ootdl.txt"))
+DETAILS_PROMPT_FILE = Path(os.getenv("DETAILS_PROMPT_FILE", "./prompts/details.txt"))
+TEMPLATE_FILE = Path(os.getenv("TEMPLATE_FILE", "./template.md"))
+CONTEXT_DIR = Path(os.getenv("CONTEXT_DIR", "./prompts/pt"))
 
 # API and Model Settings
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-pro")
 
-# --- Setup Directories ---
-# These are subdirectories for organized output
+# Output directories
 CHAT_LOG_OUTPUT_DIR = OUTPUT_DIR / "_chat_log"
 TRANSCRIPTIONS_OUTPUT_DIR = OUTPUT_DIR / "_transcripts"
 AUDIO_OUTPUT_DIR = TEMP_DIR / "audio"
 TEMP_TRANSCRIPTIONS = TEMP_DIR / "transcriptions"
+
+# === CONFIGURAÇÃO DE PARTIES ===
+AVAILABLE_PARTIES = {
+    "1": {
+        "name": "Party 01 - Odyssey of the Dragonlords",
+        "short": "Party 01",
+        "description": "Campanha principal de Odyssey of the Dragonlords"
+    },
+    "2": {
+        "name": "Party 02 - Descending into Avernus", 
+        "short": "DAA",
+        "description": "Descent into Avernus campaign"
+    },
+    "3": {
+        "name": "Party 03 - Custom Campaign",
+        "short": "Party 03", 
+        "description": "Campanha customizada"
+    },
+    "4": {
+        "name": "One-Shot Sessions",
+        "short": "OneShot",
+        "description": "Sessões avulsas e one-shots"
+    }
+}
+
+def validate_required_files():
+    """Valida se arquivos essenciais existem."""
+    required_files = [
+        DISCORD_MAPPING_FILE,
+        TEMPLATE_FILE
+    ]
+    
+    missing = [f for f in required_files if not f.exists()]
+    if missing:
+        print("❌ Arquivos obrigatórios não encontrados:")
+        for f in missing:
+            print(f"   - {f}")
+        print("\n💡 Execute o setup inicial para criar os arquivos.")
+        sys.exit(1)
+
+# Adicionar no início de main():
+validate_required_files()
+
 
 def setup_directories():
     """Create all necessary directories if they don't exist."""
@@ -56,292 +102,317 @@ def setup_directories():
     ]:
         directory.mkdir(parents=True, exist_ok=True)
 
-# --- Helper Functions ---
 
-def get_newest_file(directory: Path, pattern: str) -> Path | None:
-    """Finds the newest file matching a pattern in a directory."""
-    files = list(directory.glob(pattern))
-    return max(files, key=os.path.getmtime) if files else None
+from pathlib import Path
+import json
 
-def prettify_json(filepath: Path) -> str | None:
-    """Reads, prettifies, and returns JSON data from a file as a string."""
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            json_data = json.load(f)
-        return json.dumps(json_data, indent=2, ensure_ascii=False)
-    except (json.JSONDecodeError, FileNotFoundError, UnicodeDecodeError) as e:
-        print(f"Error processing JSON in {filepath}: {e}")
-        return None
-
-def load_context_files(context_dir: Path) -> str:
-    """Loads all text and markdown files from the context directory into a single string."""
-    context_data = ""
-    if context_dir.exists():
-        # Look for both .txt and .md files
-        file_patterns = ["*.txt", "*.md"]
-        all_files = set()
-        for pattern in file_patterns:
-            all_files.update(context_dir.glob(pattern))
-            
-        for file_path in sorted(list(all_files)): # Sort to maintain a consistent order
-            try:
-                with open(file_path, "r", encoding='utf-8') as f:
-                    context_data += f"--- CONTEXT FROM {file_path.name} ---\n{f.read()}\n\n"
-            except Exception as e:
-                print(f"Error reading context file {file_path}: {e}")
-    return context_data
-
-# --- Main Processing Steps ---
-
-def process_chat_log() -> tuple[int | None, datetime.date | None]:
-    """
-    Finds the newest session chat log, extracts the session number and date,
-    prettifies it, and saves it to the chat log output directory.
-    """
-    newest_chat_log = get_newest_file(CHAT_LOG_SOURCE_DIR, "session*.json")
-    if not newest_chat_log:
-        print("No session chat log found (e.g., 'session53.json').")
-        return None, None
-
-    match = re.search(r'session(\d+)', newest_chat_log.name)
-    if not match:
-        print(f"Could not extract session number from filename: {newest_chat_log.name}")
-        return None, None
-    session_number = int(match.group(1))
-
-    session_date = None
-    try:
-        with open(newest_chat_log, 'r', encoding='utf-8') as f:
-            log_data = json.load(f)
-            date_str = log_data.get("archiveDate")
-            if date_str:
-                session_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"Warning: Could not extract date from chat log {newest_chat_log.name}: {e}.")
-
-    output_filepath = CHAT_LOG_OUTPUT_DIR / f"session{session_number}.json"
-    if output_filepath.exists():
-        print(f"Chat log for session {session_number} already exists. Skipping processing.")
-        return session_number, session_date
-
-    prettified_json_string = prettify_json(newest_chat_log)
-    if not prettified_json_string:
-        return session_number, session_date
-
-    with open(output_filepath, 'w', encoding='utf-8') as f:
-        f.write(prettified_json_string)
-    print(f"Prettified chat log saved to: {output_filepath}")
-
-    return session_number, session_date
+def create_default_parties_config():
+    """Cria um arquivo config/prompts/summary_templates/parties.json com valores padrão se não existir."""
+    default = {
+        "parties": [
+            {
+                "id": "ootdl",
+                "name": "Odyssey of the Dragonlords",
+                "short_name": "OOTDL",
+                "description": "Campanha principal de Odyssey of the Dragonlords",
+                "context_files": ["ootdl_characters.txt", "ootdl_places.txt", "ootdl_lore.txt"],
+                "default_template": "summary-ootdl.txt",
+                "languages": ["pt", "en"]
+            },
+            {
+                "id": "avernus",
+                "name": "Descent into Avernus",
+                "short_name": "DAA",
+                "description": "Campanha oficial Baldur's Gate: Descent into Avernus",
+                "context_files": ["avernus_characters.txt", "avernus_places.txt"],
+                "default_template": "summary-detailed.txt",
+                "languages": ["pt"]
+            },
+            {
+                "id": "homebrew",
+                "name": "Custom Homebrew Campaign",
+                "short_name": "Homebrew",
+                "description": "Campanha personalizada criada pelo mestre",
+                "context_files": ["homebrew_context.txt"],
+                "default_template": "summary-creative.txt",
+                "languages": ["pt", "en"]
+            }
+        ]
+    }
+    file_path = Path("config/prompts/summary_templates/parties.json")
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(default, f, indent=2, ensure_ascii=False)
+    print(f"✅ Arquivo padrão de parties criado: {file_path}")
 
 
-def unzip_audio():
-    """Unzips the newest FLAC zip file to the audio output directory."""
-    if any(AUDIO_OUTPUT_DIR.glob("*.flac")):
-        print("Audio files already exist. Skipping unzip.")
-        return
 
-    newest_zip = get_newest_file(AUDIO_SOURCE_DIR, "craig-*.flac.zip")
-    if not newest_zip:
-        print("No matching audio zip file (craig-*.flac.zip) found.")
-        return
-
-    try:
-        with zipfile.ZipFile(newest_zip, 'r') as zip_ref:
-            zip_ref.extractall(AUDIO_OUTPUT_DIR)
-        print(f"Extracted audio to: {AUDIO_OUTPUT_DIR}")
-
-        # Clean up non-FLAC files from the extraction directory
-        for item in AUDIO_OUTPUT_DIR.iterdir():
-            if item.is_file() and item.suffix != ".flac":
-                os.remove(item)
-                print(f"Deleted non-FLAC file: {item.name}")
-
-        os.remove(newest_zip)
-        print(f"Deleted source zip file: {newest_zip.name}")
-
-    except zipfile.BadZipFile:
-        print(f"Error: {newest_zip.name} is not a valid zip file.")
-    except Exception as e:
-        print(f"An error occurred during unzipping: {e}")
-
-class _CustomProgressBar(tqdm):
-    """Custom progress bar to display elapsed and estimated remaining time."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._current = self.n
-        self._start_time = time.time()
-        self._last_update_time = self._start_time
-        self._iteration_times = []
-
-    def print_in_place(self, text):
-        sys.stdout.write("\r" + text)
-        sys.stdout.flush()
-
-    def update(self, n):
-        super().update(n)
-        self._current += n
-
-        current_time = time.time()
-        elapsed_time = current_time - self._start_time
-        iteration_time = current_time - self._last_update_time
-        self._iteration_times.append(iteration_time / n)
-        average_iteration_time = sum(self._iteration_times) / len(self._iteration_times)
-        remaining_items = self.total - self._current
-        estimated_remaining_time = remaining_items * average_iteration_time
-
-        elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
-        remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(estimated_remaining_time))
-
-        percentage = (self._current / self.total) * 100
-        self.print_in_place(f"Progress: {percentage:.2f}% - Elapsed: {elapsed_time_str} - ETA: {remaining_time_str}")
-
-        self._last_update_time = current_time
-
+# --- Transcrição de áudio com Whisper ---
 
 def transcribe_audio():
     """
-    Transcribes all FLAC audio files in the audio directory using Whisper.
-    Skips files that have already been transcribed.
+    Transcribe all FLAC files in AUDIO_OUTPUT_DIR using OpenAI Whisper on GPU.
+    Falls back to CPU if GPU is unavailable or falha.
     """
-    model_name = "large"
-    device = "cuda" # 'cuda' for NVIDIA GPUs, 'cpu' for CPU
+    import torch
+    from whisper import load_model
 
-    # Check if all audio files are already transcribed before loading the model
-    audio_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"), key=os.path.getsize)
-    files_to_transcribe = [
-        f for f in audio_files
-        if not (TEMP_TRANSCRIPTIONS / f"{f.stem}.json").exists()
-    ]
+    AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    TEMP_TRANSCRIPTIONS.mkdir(parents=True, exist_ok=True)
 
-    if not files_to_transcribe:
-        print("All audio files already transcribed. Skipping.")
-        return
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"🔄 Usando dispositivo para transcrição: {device}")
 
-    # Inject custom progress bar into Whisper
-    transcribe_module = sys.modules['whisper.transcribe']
-    transcribe_module.tqdm.tqdm = _CustomProgressBar
+    print("Carregando modelo Whisper small...")
+    model = load_model("small", device=device)
+    print("✅ Modelo carregado.")
 
-    try:
-        model = whisper.load_model(model_name, device=device, download_root="./models/")
-    except Exception as e:
-        print(f"Error loading Whisper model: {e}")
-        print("Ensure you have a compatible CUDA version or change device to 'cpu'.")
-        return
+    flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
+    if not flac_files:
+        print("Nenhum arquivo .flac para transcrever.")
+        return False
 
-    with open(WHISPER_PROMPT_FILE, "r", encoding='utf-8') as f:
-        initial_prompt = f.read().strip()
+    for i, audio in enumerate(flac_files, 1):
+        output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
+        if output_json.exists():
+            print(f"[{i}/{len(flac_files)}] {audio.name} já transcrito, pulando.")
+            continue
 
-    for audio_file in tqdm(files_to_transcribe, desc="Transcribing Audio"):
-        json_output_path = TEMP_TRANSCRIPTIONS / f"{audio_file.stem}.json"
-        print(f"Transcribing {audio_file.name}...")
+        print(f"[{i}/{len(flac_files)}] Transcrevendo {audio.name} ...")
+        start_time = time.time()
+
         try:
             result = model.transcribe(
-                str(audio_file),
-                language="pl",
-                initial_prompt=initial_prompt
+                str(audio),
+                language="pt",
+                fp16=(device == "cuda")  # usa FP16 na GPU para acelerar
             )
-            with open(json_output_path, "w", encoding='utf-8') as f:
-                json.dump(result["segments"], f, indent=2, ensure_ascii=False)
-            print(f"\nTranscription of '{audio_file.name}' saved.")
+            segments = result["segments"]
+            # Filtra segmentos vazios
+            segments = [s for s in segments if s.get("text","").strip()]
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump(segments, f, indent=2, ensure_ascii=False)
+
+            elapsed = (time.time() - start_time) / 60
+            print(f"    ✅ Concluído em {elapsed:.1f} minutos - {len(segments)} segmentos")
         except Exception as e:
-            print(f"Error transcribing '{audio_file.name}': {e}")
+            print(f"    ❌ Erro ao transcrever {audio.name}: {e}")
+            # Fallback para CPU caso falhe na GPU
+            if device == "cuda":
+                print("    ⚠️ Falha na GPU, tentando CPU...")
+                return transcribe_audio()  # recursive call with CPU
+            # se já estiver em CPU, marca como vazio e continua
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump([], f)
+
+    print("✅ Transcrição de todos os arquivos concluída.")
+    return True
 
 
+def load_parties_config() -> dict:
+    """Carrega configuração automatizada das parties"""
+    config_file = Path("config/parties.json")
+    
+    if not config_file.exists():
+        # Cria configuração padrão se não existir
+        create_default_parties_config()
+    
+    with open(config_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def get_available_parties(language: str) -> list:
+    """Retorna parties disponíveis para o idioma especificado"""
+    config = load_parties_config()
+    available = []
+    
+    for party in config["parties"]:
+        if language in party["languages"]:
+            available.append(party)
+    
+    return available
+
+def get_available_templates() -> list[Path]:
+    """Detecta automaticamente templates disponíveis"""
+    template_dirs = [
+        Path("config/templates"),
+        Path("config/prompts/summary_templates"), 
+        Path("templates"),
+        Path("prompts")
+    ]
+    
+    templates = []
+    for template_dir in template_dirs:
+        if template_dir.exists():
+            templates.extend(template_dir.glob("summary-*.txt"))
+            templates.extend(template_dir.glob("*template*.txt"))
+    
+    return sorted(list(set(templates)))  # Remove duplicatas
+
+def get_party_choice_automated(language: str) -> dict:
+    """Escolha automatizada de party com detecção dinâmica"""
+    available_parties = get_available_parties(language)
+    
+    if not available_parties:
+        print(f"❌ Nenhuma party disponível para o idioma '{language}'")
+        return None
+    
+    print(f"\n🎭 Parties disponíveis para {language.upper()}:")
+    for idx, party in enumerate(available_parties, 1):
+        print(f"  [{idx}] {party['name']} ({party['short_name']})")
+        print(f"      {party['description']}")
+    
+    print(f"  [custom] Digite um nome personalizado")
+    
+    while True:
+        choice = input(f"\nEscolha a party [1-{len(available_parties)}/custom]: ").strip()
+        
+        try:
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(available_parties):
+                selected = available_parties[choice_num - 1]
+                print(f"✅ Party selecionada: {selected['name']}")
+                return selected
+        except ValueError:
+            if choice.lower() == 'custom':
+                custom_name = input("Digite o nome da party personalizada: ").strip()
+                return {
+                    "id": "custom",
+                    "name": custom_name,
+                    "short_name": custom_name,
+                    "description": "Party personalizada",
+                    "context_files": [],
+                    "default_template": None,
+                    "languages": [language]
+                }
+        
+        print(f"❌ Escolha inválida.")
+
+def choose_template_automated(party: dict) -> Path:
+    """Escolha automatizada de template com sugestão baseada na party"""
+    available_templates = get_available_templates()
+    
+    if not available_templates:
+        print("❌ Nenhum template encontrado!")
+        return None
+    
+    # Sugere template padrão da party se disponível
+    if party.get("default_template"):
+        default_template = Path(f"config/templates/{party['default_template']}")
+        if default_template.exists():
+            print(f"💡 Sugerindo template padrão para {party['short_name']}: {default_template.name}")
+    
+    print(f"\n📋 Templates disponíveis:")
+    for idx, template in enumerate(available_templates, 1):
+        display_name = template.stem.replace("summary-", "").replace("template-", "")
+        print(f"  [{idx}] {display_name} ({template.name})")
+    
+    while True:
+        try:
+            choice = int(input(f"Escolha o template [1-{len(available_templates)}]: "))
+            if 1 <= choice <= len(available_templates):
+                selected = available_templates[choice - 1] 
+                print(f"✅ Template selecionado: {selected.name}")
+                return selected
+        except ValueError:
+            pass
+        print(f"❌ Escolha inválida.")
+
+
+# --- Combinação de transcrições ---
 def combine_transcriptions(session_number: int) -> Path | None:
     """
-    Combines individual JSON transcriptions into a single JSON and a single TXT file.
-    Assigns speaker labels based on the mapping file.
+    Combines individual JSON transcript files into a single JSON and TXT,
+    labels speakers based on DISCORD_MAPPING_FILE, and writes to TRANSCRIPTIONS_OUTPUT_DIR.
+    Returns the path to the combined TXT.
     """
-    combined_json_path = TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.json"
-    combined_txt_path = TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.txt"
+    TRANSCRIPTIONS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    if combined_json_path.exists() and combined_txt_path.exists():
-        print(f"Combined transcriptions for session {session_number} already exist. Skipping.")
-        return combined_txt_path
+    combined_json = TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.json"
+    combined_txt = TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.txt"
 
-    try:
-        with open(DISCORD_MAPPING_FILE, "r", encoding='utf-8') as f:
-            discord_character_mapping = json.load(f)
-    except FileNotFoundError:
-        print(f"Warning: Mapping file '{DISCORD_MAPPING_FILE}' not found. Using raw Discord usernames.")
-        discord_character_mapping = {}
+    if combined_txt.exists():
+        print(f"Transcrição combinada já existe: {combined_txt.name}")
+        return combined_txt
 
-    all_segments = []
-    json_files = sorted(list(TEMP_TRANSCRIPTIONS.glob("*.json")))
+    # Carrega mapeamento Discord -> personagem
+    if DISCORD_MAPPING_FILE.exists():
+        mapping = json.loads(DISCORD_MAPPING_FILE.read_text(encoding="utf-8"))
+    else:
+        mapping = {}
 
-    for json_file in json_files:
-        try:
-            # Assumes filename format like "123456-DiscordUser_1234.flac"
-            discord_user = json_file.stem.split("-", 1)[1].lstrip("_").split("_")[0]
-            speaker = discord_character_mapping.get(discord_user, discord_user)
-        except IndexError:
-            print(f"Warning: Could not extract speaker from {json_file.name}. Using filename stem.")
-            speaker = json_file.stem
+    # Agrega todos os segmentos
+    segments = []
+    for seg_file in sorted(TEMP_TRANSCRIPTIONS.glob("*.json")):
+        data = json.loads(seg_file.read_text(encoding="utf-8"))
+        # extrai speaker do nome do arquivo
+        stem = seg_file.stem
+        speaker_key = stem.split("-",1)[-1]
+        speaker = mapping.get(speaker_key, speaker_key)
+        IGNORE_SPEAKERS = {"craig", "botyan", "bot_yan", "bot yan"}
+        
+        for seg in data:
+            text = seg.get("text", "").strip()
+            if not text:
+                continue
 
-        with open(json_file, "r", encoding='utf-8') as f:
-            segments = json.load(f)
-            for segment in segments:
-                # Filter out low-confidence or junk segments
-                text = segment['text'].strip()
-                if segment.get("no_speech_prob", 0.0) > 0.3 or not text:
-                    continue
-                if text in ["...", "... ...", "Dziękuję.", "Dzień dobry.", "Ale..."]:
-                    continue
-                segment["speaker"] = speaker
-                all_segments.append(segment)
+            # Filtra speakers indesejados (case-insensitive)
+            speaker_key_lower = speaker.lower().replace(" ", "").replace("_", "")
+            if any(bot in speaker_key_lower for bot in IGNORE_SPEAKERS):
+            # pula segmento do bot
+                continue
+            seg["speaker"] = speaker
+            segments.append(seg)
 
-    # Sort all collected segments by their start time
-    all_segments.sort(key=lambda x: x["start"])
 
-    # Save the combined, sorted JSON
-    with open(combined_json_path, "w", encoding='utf-8') as f:
-        json.dump(all_segments, f, indent=2, ensure_ascii=False)
+    # Ordena por tempo de início
+    segments.sort(key=lambda s: s["start"])
 
-    # Save the human-readable TXT transcript
-    with open(combined_txt_path, "w", encoding='utf-8') as f:
-        current_speaker = None
-        for segment in all_segments:
-            if segment["speaker"] != current_speaker:
-                f.write(f"\n\n[{segment['speaker']}]\n")
-                current_speaker = segment["speaker"]
-            f.write(segment["text"].strip() + " ")
+    # Salva JSON combinado
+    with open(combined_json, "w", encoding="utf-8") as f:
+        json.dump(segments, f, indent=2, ensure_ascii=False)
+    print(f"JSON combinado salvo: {combined_json.name}")
 
-    print(f"Combined transcription saved to {combined_txt_path}")
-    return combined_txt_path
+    # Salva TXT legível
+    with open(combined_txt, "w", encoding="utf-8") as f:
+        current = None
+        for seg in segments:
+            if seg["speaker"] != current:
+                f.write(f"\n\n[{seg['speaker']}]\n")
+                current = seg["speaker"]
+            f.write(seg["text"].strip() + " ")
 
-# --- AI Generation and Note Creation ---
+    print(f"TXT combinado salvo: {combined_txt.name}")
+    return combined_txt
 
+
+# === AI GENERATION FUNCTIONS ===
 class SessionData(BaseModel):
     """Pydantic model for structuring data extracted by Gemini."""
-    title: str = Field(description="Tytuł sesji. Powinien być krótki, ale opisowy i chwytliwy.")
-    events: list[str] = Field(description="Krótka, punktowa lista najważniejszych wydarzeń lub decyzji, które miały miejsce.")
-    npcs: list[str] = Field(description="Lista najważniejszych postaci niezależnych (NPC), które pojawiły się lub odegrały kluczową rolę.")
-    locations: list[str] = Field(description="Lista najważniejszych odwiedzonych lokacji.")
-    items: list[str] = Field(description="Lista najważniejszych zdobytych lub użytych przedmiotów.")
-    quotes: list[str] = Field(description="Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, wraz z informacją, kto je wypowiedział. Np. 'Arevon: 'Coś tu jest nie tak.'.")
-    hooks: list[str] = Field(description="Lista 3-4 propozycji lub 'zajawek' na następną sesję, skierowanych do Mistrza Gry. Każda powinna być intrygującym pytaniem lub sytuacją wynikającą z wydarzeń tej sesji.")
-    images: list[str] = Field(
-        description="""Lista 10 promptów do użycia w generatorach obrazów AI, **napisanych w języku angielskim**.
-                       Każdy prompt powinien zaczynać się od słowa 'Draw'.
-                       Unikaj nazw własnych postaci, zamiast tego opisz ich wygląd i akcję.
-                       Stosuj różnorodne style artystyczne (np. 'oil painting', 'fantasy art', 'cinematic')."""
-    )
-    videos: list[str] = Field(
-        description="""Lista 10 szczegółowych promptów do generowania **wideo**, **napisanych w języku angielskim**.
-                       Każdy prompt powinien opisywać krótką, dynamiczną scenę (3-5 sekund), zawierającą ruch kamery, akcje postaci i zmiany w otoczeniu."""
-    )
+    title: str = Field(description="Título da sessão")
+    events: list[str] = Field(description="Eventos principais")
+    npcs: list[str] = Field(description="NPCs importantes")
+    locations: list[str] = Field(description="Locais visitados")
+    items: list[str] = Field(description="Itens relevantes")
+    quotes: list[str] = Field(description="Citações memoráveis")
+    hooks: list[str] = Field(description="Ganchos para próxima sessão")
+    images: list[str] = Field(description="Prompts de imagem em inglês")
+    videos: list[str] = Field(description="Prompts de vídeo em inglês")
 
-def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData] | None:
+def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData] | None:
+    import instructor
     """Generates a detailed summary and structured data using the Gemini API."""
     if not GEMINI_API_KEY:
-        print("GEMINI_API_KEY not set in .env file. Skipping note generation.")
+        print("GEMINI_API_KEY não configurada. Pulando geração de notas.")
         return None
-        
+    
     genai.configure(api_key=GEMINI_API_KEY)
     
     with open(transcript_file, "r", encoding='utf-8') as f:
         transcript_content = f.read()
+
+    if not transcript_content.strip():
+        print("❌ Arquivo de transcrição está vazio. Não é possível gerar notas.")
+        return None
 
     # --- Step 1: Generate Detailed Summary ---
     with open(SUMMARY_PROMPT_FILE, "r", encoding='utf-8') as f:
@@ -357,20 +428,20 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData
     # Load general context from text and markdown files
     general_context = load_context_files(CONTEXT_DIR)
     if general_context:
-        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST KAMPANII:\n{general_context}"]})
+        summary_messages.append({"role": "user", "parts": [f"CONTEXTO DA CAMPANHA:\n{general_context}"]})
 
-    summary_messages.append({"role": "user", "parts": [f"TRANSKRYPT OBECNEJ SESJI:\n{transcript_content}"]})
+    summary_messages.append({"role": "user", "parts": [f"TRANSCRIÇÃO DA SESSÃO:\n{transcript_content}"]})
 
-    print("Generating detailed session summary...")
+    print("Gerando sumário detalhado...")
     summary_response = summary_model.generate_content(
         summary_messages,
         generation_config=genai.GenerationConfig(temperature=0.7),
     )
     session_summary = summary_response.text
-    print("Session summary generated.")
+    print("✅ Sumário gerado.")
 
     # --- Step 2: Extract Structured Details ---
-    print("Waiting for API rate limit...")
+    print("Aguardando rate limit da API...")
     time.sleep(10)
 
     with open(DETAILS_PROMPT_FILE, "r", encoding='utf-8') as f:
@@ -384,12 +455,12 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData
         mode=instructor.Mode.GEMINI_JSON,
     )
 
-    print("Extracting structured details...")
+    print("Extraindo detalhes estruturados...")
     details_messages = [{
         "role": "user",
         "content": (
-            f"PODSUMOWANIE SESJI (użyj do generowania tytułu, wydarzeń, NPC, lokacji, przedmiotów i propozycji na następną sesję):\n{session_summary}\n\n"
-            f"PEŁNA TRANSKRYPCJA (użyj TYLKO do znalezienia pamiętnych cytatów):\n{transcript_content}"
+            f"SUMÁRIO DA SESSÃO:\n{session_summary}\n\n"
+            f"TRANSCRIÇÃO COMPLETA:\n{transcript_content}"
         )
     }]
 
@@ -398,10 +469,10 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData
         response_model=SessionData,
         max_retries=3,
     )
-    print("Session details extracted.")
+    print("✅ Detalhes extraídos.")
     return session_summary, session_data
 
-def save_summary_file(session_summary: str, session_data: SessionData, session_number: int, session_date: datetime.date):
+def save_summary_file(session_summary: str, session_data: SessionData, session_number: int, session_date):
     """Saves the generated notes to a formatted Markdown file."""
     with open(TEMPLATE_FILE, "r", encoding='utf-8') as f:
         template = f.read()
@@ -422,80 +493,229 @@ def save_summary_file(session_summary: str, session_data: SessionData, session_n
     )
 
     sane_title = re.sub(r'[\\/*?:"<>|]', "", session_data.title)
-    output_file = OUTPUT_DIR / f"Sesja {session_number} - {sane_title}.md"
+    output_file = OUTPUT_DIR / f"Sessão {session_number} - {sane_title}.md"
     with open(output_file, "w", encoding='utf-8') as f:
         f.write(output)
-    print(f"Session notes saved to {output_file}")
-
-# --- Workflow Functions ---
-
-def run_transcription_workflow():
-    """Runs the workflow up to and including combining transcriptions."""
-    start_time = time.time()
-    print("\n[Step 1/4] Processing Chat Log...")
-    session_number, session_date = process_chat_log()
-    if session_number is None:
-        print("❌ Error processing chat log. Aborting workflow.")
-        return
-
-    if session_date is None:
-        today = datetime.date.today()
-        session_date = today - datetime.timedelta(days=today.weekday())
-        print(f"⚠️ Could not determine date. Defaulting to last Monday: {session_date.strftime('%Y-%m-%d')}")
-
-    print(f"✅ Found Session Number: {session_number}")
-    print(f"✅ Found Session Date: {session_date.strftime('%Y-%m-%d')}")
-
-    print("\n[Step 2/4] Preparing Audio Files...")
-    unzip_audio()
-    print("✅ Audio files are ready.")
-
-    print("\n[Step 3/4] Transcribing Audio...")
-    transcribe_audio()
-    print("✅ Transcription complete.")
-    
-    print("\n[Step 4/4] Combining Transcriptions...")
-    transcript_file = combine_transcriptions(session_number)
-    if not transcript_file:
-         print("❌ Error combining transcriptions. Aborting workflow.")
-         return
-    print("✅ Transcriptions combined.")
-    
-    end_time = time.time()
-    print(f"\n✨ Transcription workflow completed in {time.strftime('%H:%M:%S', time.gmtime(end_time - start_time))}. ✨")
-    return transcript_file, session_number, session_date
-
+    print(f"✅ Notas da sessão salvas: {output_file}")
 
 def run_full_workflow():
-    """Runs the entire workflow, including AI generation."""
-    start_time = time.time()
+    """Executa workflow completo incluindo IA."""
+    result = run_transcription_workflow()
+    if not result:
+        return
     
-    # Run the initial transcription part of the workflow
-    transcription_result = run_transcription_workflow()
-    if not transcription_result:
-        return # Abort if the first part failed
+    session_number, session_date = result
     
-    transcript_file, session_number, session_date = transcription_result
-
-    print("\n[Step 5/5] Generating Session Notes with AI...")
-    notes = generate_session_notes(transcript_file)
+    print("\n[Passo 5/5] Geração de notas com IA...")
+    notes = generate_session_notes(
+        TRANSCRIPTIONS_OUTPUT_DIR / f"session{session_number}.txt"
+    )
+    
     if notes:
-        summary, details = notes
-        save_summary_file(summary, details, session_number, session_date)
-        print("✅ AI-powered session notes have been generated and saved.")
+        summary, structured_data = notes
+        save_summary_file(summary, structured_data, session_number, session_date)
+        print("✅ Notas com IA geradas e salvas com sucesso.")
     else:
-        print("⚠️ AI note generation was skipped or failed.")
+        print("⚠️ Geração de notas com IA foi pulada ou falhou.")
+    
+    print("\n✨ Workflow completo finalizado! ✨")
 
-    end_time = time.time()
-    print(f"\n✨ Full workflow completed in {time.strftime('%H:%M:%S', time.gmtime(end_time - start_time))}. ✨")
+# --- Helper Functions ---
+def get_newest_file(directory: Path, pattern: str) -> Path | None:
+    """Finds the newest file matching a pattern in a directory."""
+    files = list(directory.glob(pattern))
+    return max(files, key=os.path.getmtime) if files else None
 
-# --- Main Orchestration ---
+def get_summary_templates() -> list[Path]:
+    """Obtém lista de templates de sumário disponíveis."""
+    possible_locations = [
+        Path("config/prompts/summary_templates"),
+        Path("prompts"),
+        Path("templates"),
+    ]
+    
+    patterns = ["summary-*.txt", "*.txt"]
+    
+    for location in possible_locations:
+        if location.exists():
+            for pattern in patterns:
+                files = sorted(location.glob(pattern))
+                if files:
+                    print(f"📁 Encontrados templates em: {location}")
+                    return files
+    
+    print("⚠️ Nenhum template encontrado. Criando template padrão...")
+    create_default_templates()
+    return get_summary_templates()
 
+def create_default_templates():
+    """Cria templates padrão se não existirem."""
+    templates_dir = Path("config/prompts/summary_templates")
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    
+    ootdl_template = templates_dir / "summary-ootdl.txt"
+    if not ootdl_template.exists():
+        default_content = """Você é um assistente que cria resumos detalhados de sessões de RPG.
+
+Analise a transcrição fornecida e crie um resumo extenso e envolvente dos acontecimentos.
+Escreva em linguagem narrativa, como em um conto, transmitindo a atmosfera da sessão.
+Destaque momentos importantes (sérios e humorísticos).
+
+O resumo deve ter pelo menos 400-500 palavras e capturar todos os detalhes relevantes."""
+        
+        with open(ootdl_template, 'w', encoding='utf-8') as f:
+            f.write(default_content)
+        print(f"✅ Template padrão criado: {ootdl_template}")
+
+# --- Main Processing Steps ---
+def process_chat_log() -> tuple[int | None, datetime.date | None]:
+    """
+    Processa log de chat se disponível, senão usa data atual e número sequencial.
+    """
+    # Tenta encontrar arquivo session*.json
+    newest_chat_log = get_newest_file(CHAT_LOG_SOURCE_DIR, "session*.json")
+    
+    if newest_chat_log:
+        print(f"📄 Encontrado chat log: {newest_chat_log.name}")
+        match = re.search(r'session(\d+)', newest_chat_log.name)
+        if match:
+            session_number = int(match.group(1))
+            
+            # Extrai data se possível
+            session_date = None
+            try:
+                with open(newest_chat_log, 'r', encoding='utf-8') as f:
+                    log_data = json.load(f)
+                date_str = log_data.get("archiveDate")
+                if date_str:
+                    session_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            except Exception as e:
+                print(f"⚠️ Aviso: Não foi possível extrair data do chat log: {e}")
+            
+            return session_number, session_date
+    
+    # Se não encontrar chat log, gera número sequencial e usa data atual
+    print("⚠️ Nenhum arquivo session*.json encontrado.")
+    print("📅 Gerando número de sessão baseado na data atual...")
+    
+    today = datetime.date.today()
+    # Usa formato YYYYMMDD como número da sessão
+    session_number = int(today.strftime("%Y%m%d"))
+    
+    print(f"✅ Usando sessão número: {session_number} (baseado na data)")
+    print(f"✅ Data da sessão: {today.strftime('%Y-%m-%d')}")
+    
+    return session_number, today
+
+def find_audio_archive() -> Path | None:
+    """
+    Procura por arquivos de áudio craig em vários formatos.
+    """
+    patterns = [
+        "craig-*.flac.zip",
+        "craig-*.flac",
+        "craig-*.aup.zip",
+        "*craig*.zip"
+    ]
+    
+    for pattern in patterns:
+        files = list(AUDIO_SOURCE_DIR.glob(pattern))
+        if files:
+            newest = max(files, key=os.path.getmtime)
+            print(f"🎵 Encontrado arquivo de áudio: {newest.name}")
+            return newest
+    
+    print("❌ Nenhum arquivo de áudio encontrado nos formatos:")
+    for pattern in patterns:
+        print(f"   - {pattern}")
+    return None
+
+def extract_audio_files():
+    """
+    Extrai arquivos de áudio de vários formatos (flac.zip, aup.zip, ou diretório).
+    """
+    if any(AUDIO_OUTPUT_DIR.glob("*.flac")):
+        print("✅ Arquivos de áudio já extraídos. Pulando extração.")
+        return True
+    
+    audio_archive = find_audio_archive()
+    if not audio_archive:
+        return False
+    
+    try:
+        if audio_archive.suffix == '.zip':
+            # Extrai arquivo ZIP
+            with zipfile.ZipFile(audio_archive, 'r') as zip_ref:
+                zip_ref.extractall(AUDIO_OUTPUT_DIR)
+            print(f"✅ Extraído arquivo ZIP: {audio_archive.name}")
+            
+            # Se extraiu uma estrutura de diretório (como do aup.zip), encontra os FLACs
+            flac_files = list(AUDIO_OUTPUT_DIR.rglob("*.flac"))
+            if flac_files:
+                # Move todos os FLAC para o diretório raiz
+                for flac_file in flac_files:
+                    if flac_file.parent != AUDIO_OUTPUT_DIR:
+                        new_path = AUDIO_OUTPUT_DIR / flac_file.name
+                        shutil.move(str(flac_file), str(new_path))
+                        print(f"📁 Movido: {flac_file.name}")
+                
+                # Limpa diretórios vazios
+                for item in AUDIO_OUTPUT_DIR.iterdir():
+                    if item.is_dir():
+                        try:
+                            item.rmdir()
+                        except OSError:
+                            # Diretório não vazio, remove recursivamente
+                            shutil.rmtree(item)
+        
+        elif audio_archive.is_dir():
+            # Copia arquivos FLAC de um diretório
+            flac_files = list(audio_archive.glob("*.flac"))
+            for flac_file in flac_files:
+                shutil.copy2(flac_file, AUDIO_OUTPUT_DIR / flac_file.name)
+            print(f"✅ Copiados {len(flac_files)} arquivos FLAC do diretório")
+        
+        # Remove arquivos não-FLAC
+        for item in AUDIO_OUTPUT_DIR.iterdir():
+            if item.is_file() and item.suffix != ".flac":
+                os.remove(item)
+                print(f"🗑️ Removido arquivo não-FLAC: {item.name}")
+        
+        # Lista arquivos FLAC encontrados
+        flac_files = list(AUDIO_OUTPUT_DIR.glob("*.flac"))
+        print(f"✅ Total de arquivos FLAC prontos: {len(flac_files)}")
+        for flac in sorted(flac_files):
+            print(f"   🎵 {flac.name}")
+        
+        return len(flac_files) > 0
+        
+    except Exception as e:
+        print(f"❌ Erro ao extrair áudio: {e}")
+        return False
+
+def load_context_files(context_dir: Path) -> str:
+    """Carrega arquivos de contexto."""
+    context_data = ""
+    if context_dir.exists():
+        file_patterns = ["*.txt", "*.md"]
+        all_files = set()
+        for pattern in file_patterns:
+            all_files.update(context_dir.glob(pattern))
+        
+        for file_path in sorted(list(all_files)):
+            try:
+                with open(file_path, "r", encoding='utf-8') as f:
+                    context_data += f"--- CONTEXT FROM {file_path.name} ---\n{f.read()}\n\n"
+            except Exception as e:
+                print(f"Error reading context file {file_path}: {e}")
+    return context_data
+
+# === INTERFACE FUNCTIONS ===
 def handle_temp_directory():
-    """Checks for an existing temp directory and asks the user how to proceed."""
+    """Gerencia diretório temporário existente."""
     if TEMP_DIR.exists() and any(TEMP_DIR.iterdir()):
         print("-" * 50)
-        print(f"⚠️  Warning: Temporary directory '{TEMP_DIR}' already contains files.")
+        print(f"⚠️ Warning: Temporary directory '{TEMP_DIR}' already contains files.")
         print("Continuing may use old files or cause unexpected behavior.")
         
         while True:
@@ -503,12 +723,11 @@ def handle_temp_directory():
             if choice in ['y', 'yes']:
                 try:
                     shutil.rmtree(TEMP_DIR)
-                    print(f"🗑️  Temporary directory '{TEMP_DIR}' has been removed.")
+                    print(f"🗑️ Temporary directory '{TEMP_DIR}' has been removed.")
+                    break
                 except Exception as e:
                     print(f"❌ Error removing temporary directory: {e}")
-                    print("Please remove it manually and restart the script.")
                     sys.exit(1)
-                break
             elif choice in ['n', 'no']:
                 print("👍 Continuing with existing temporary files.")
                 break
@@ -516,48 +735,205 @@ def handle_temp_directory():
                 print("Invalid choice. Please enter 'y' or 'n'.")
         print("-" * 50)
 
-def display_menu():
-    """Displays the main menu and handles user input."""
+def get_language_choice() -> str:
+    """Obtém escolha do idioma."""
+    while True:
+        lang = input("Qual o idioma da sessão? [en/pt]: ").strip().lower()
+        if lang in ["en", "pt"]:
+            return lang
+        print("❌ Idioma inválido. Digite 'en' ou 'pt'.")
+
+def get_party_choice() -> dict:
+    """Obtém escolha da party com lista de opções."""
+    print("\n🎭 Parties disponíveis:")
+    for key, party in AVAILABLE_PARTIES.items():
+        print(f"  [{key}] {party['name']}")
+        print(f"      {party['description']}")
+    print(f"  [custom] Digite um nome personalizado")
+    
+    while True:
+        choice = input(f"\nEscolha a party [1-{len(AVAILABLE_PARTIES)}/custom]: ").strip().lower()
+        
+        if choice in AVAILABLE_PARTIES:
+            selected_party = AVAILABLE_PARTIES[choice]
+            print(f"✅ Party selecionada: {selected_party['name']}")
+            return selected_party
+        elif choice == 'custom':
+            while True:
+                custom_name = input("Digite o nome da party personalizada: ").strip()
+                if custom_name:
+                    return {
+                        "name": custom_name,
+                        "short": custom_name,
+                        "description": "Party personalizada"
+                    }
+                print("❌ Nome não pode estar vazio.")
+        else:
+            print(f"❌ Escolha inválida. Digite um número entre 1 e {len(AVAILABLE_PARTIES)} ou 'custom'.")
+
+def choose_summary_template() -> Path:
+    """Permite escolher template de sumário."""
+    summary_files = get_summary_templates()
+    
+    if not summary_files:
+        print("❌ Erro: Nenhum template de sumário encontrado!")
+        sys.exit(1)
+    
+    print("\n📋 Sumários disponíveis:")
+    for idx, sf in enumerate(summary_files):
+        display_name = sf.stem.replace("summary-", "")
+        print(f"  [{idx+1}] {display_name} ({sf.name})")
+    
+    while True:
+        try:
+            choice = input(f"Escolha o sumário [1-{len(summary_files)}]: ").strip()
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(summary_files):
+                selected = summary_files[choice_num - 1]
+                print(f"✅ Template selecionado: {selected.name}")
+                return selected
+            else:
+                print(f"❌ Escolha inválida. Digite um número entre 1 e {len(summary_files)}.")
+        except ValueError:
+            print(f"❌ Entrada inválida. Digite um número entre 1 e {len(summary_files)}.")
+        except KeyboardInterrupt:
+            print("\n👋 Operação cancelada pelo usuário.")
+            sys.exit(0)
+
+def display_main_menu() -> str:
+    """Exibe menu principal e retorna escolha do usuário."""
     print("\n" + "="*50)
     print("🚀 D&D Session Processing Workflow 🚀")
     print("="*50)
-    print("Please choose an option:")
-    print("  [1] Start Full Workflow (Transcribe -> Generate AI Notes)")
-    print("  [2] Run Workflow until Transcribing (Generate transcript file only)")
-    print("  [3] Exit")
+    print("Escolha uma opção:")
+    print(" [1] Workflow Completo (Transcrever → Gerar Notas com IA)")
+    print(" [2] Apenas Transcrição (Gerar apenas arquivo de transcrição)")
+    print(" [3] Sair")
     print("="*50)
     
     while True:
-        choice = input("Enter your choice [1-4]: ").strip()
+        choice = input("Digite sua escolha [1-3]: ").strip()
         if choice in ['1', '2', '3']:
             return choice
-        else:
-            print("❌ Invalid choice. Please enter a number from 1 to 3.")
+        print("❌ Escolha inválida. Digite um número de 1 a 3.")
+
+# === WORKFLOW SIMPLIFICADO (placeholder) ===
+def run_transcription_workflow():
+    """Executa workflow de transcrição com tratamento de erros melhorado."""
+    print("\n[Passo 1/4] Processando informações da sessão...")
+    session_number, session_date = process_chat_log()
+    
+    if not session_number:
+        print("❌ Erro ao determinar número da sessão.")
+        return None
+    
+    print(f"✅ Sessão: {session_number}")
+    print(f"✅ Data: {session_date.strftime('%Y-%m-%d')}")
+    
+    print("\n[Passo 2/4] Extraindo arquivos de áudio...")
+    if not extract_audio_files():
+        print("❌ Erro ao extrair arquivos de áudio.")
+        return None
+    
+    print("✅ Arquivos de áudio prontos para transcrição!")
+    
+    print("\n[Passo 3/4] Transcrição de áudio...")
+    success = transcribe_audio()  # Agora retorna True/False
+    
+    if not success:
+        print("❌ Erro na transcrição. Abortando workflow.")
+        return None
+    
+    print("✅ Transcrição concluída com sucesso.")
+    
+    print("\n[Passo 4/4] Combinação de transcrições...")
+    transcript_file = combine_transcriptions(session_number)
+    if not transcript_file:
+        print("❌ Erro ao combinar transcrições.")
+        return None
+    
+    # Verifica se o arquivo combinado tem conteúdo
+    try:
+        with open(transcript_file, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+        if not content:
+            print("❌ Arquivo de transcrição combinado está vazio.")
+            return None
+        print(f"✅ Transcrições combinadas ({len(content)} caracteres).")
+    except Exception as e:
+        print(f"❌ Erro ao verificar arquivo combinado: {e}")
+        return None
+    
+    print("\n✨ Workflow de transcrição concluído com sucesso! ✨")
+    return session_number, session_date
+
+
+def run_full_workflow():
+    """Executa workflow completo."""
+    result = run_transcription_workflow()
+    if not result:
+        return
+    
+    session_number, session_date = result
+    
+    print("\n[Passo 5/5] Geração de notas com IA...")
+    print("⚠️ Geração com IA será implementada após a transcrição.")
+    
+    print("\n✨ Workflow completo preparado! ✨")
 
 def main():
-    """Main function to orchestrate the entire workflow via a menu."""
-    handle_temp_directory()
+    """Função principal."""
+    print("🚀 RPG Session Notes Automator 🚀")
+    print("=" * 50)
     
-    # Always set up directories after handling the temp dir
-    setup_directories()
-
-    while True:
-        choice = display_menu()
-
-        if choice == '1':
-            print("\nStarting Full Workflow...")
-            run_full_workflow()
+    try:
+        # Setup inicial
+        handle_temp_directory()
+        setup_directories()
         
-        elif choice == '2':
-            print("\nStarting Transcription-Only Workflow...")
-            run_transcription_workflow()
+        # Coleta configurações da sessão
+        language = get_language_choice()
+        party_info = get_party_choice_automated(language)
+        summary_template = choose_template_automated(party_info) or choose_summary_template()
 
-        elif choice == '3':
-            print("\n👋 Exiting. Goodbye!")
-            break
         
-        print("\nReturning to main menu...")
-
+        print(f"\n📋 Configuração:")
+        print(f"   Idioma: {language}")
+        print(f"   Party: {party_info['name']}")
+        print(f"   Template: {summary_template.name}")
+        
+        # Configuração global
+        global SUMMARY_PROMPT_FILE, CONTEXT_DIR
+        SUMMARY_PROMPT_FILE = summary_template
+        CONTEXT_DIR = Path("prompts") / language
+        
+        # Loop principal do menu
+        while True:
+            choice = display_main_menu()
+            
+            if choice == '1':
+                print("\n🎯 Iniciando Workflow Completo...")
+                run_full_workflow()
+                
+            elif choice == '2':
+                print("\n📝 Iniciando Workflow de Transcrição...")
+                run_transcription_workflow()
+                
+            elif choice == '3':
+                print("\n👋 Encerrando aplicação. Até logo!")
+                break
+            
+            print("\n🔄 Retornando ao menu principal...")
+            input("Pressione Enter para continuar...")
+    
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Operação cancelada pelo usuário.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n❌ Erro inesperado: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

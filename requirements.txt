@@ -1,4 +1,30 @@
-openai-whisper==20250625  # https://github.com/openai/whisper
-google-generativeai==0.8.5  # https://github.com/google-gemini/generative-ai-python
-instructor[google-generativeai]==1.9.2  # https://github.com/instructor-ai/instructor
-python-dotenv==1.1.1  # https://github.com/theskumar/python-dotenv
+# requirements.txt - Dependências atualizadas e organizadas
+
+# === TRANSCRIÇÃO E ÁUDIO ===
+openai-whisper==20250625  # Transcrição de áudio com Whisper
+# FFmpeg necessário no sistema para Whisper funcionar
+
+# === IA E PROCESSAMENTO ===  
+google-generativeai==0.8.5  # API do Google Gemini
+instructor[google-generativeai]==1.9.2  # Structured outputs com Pydantic
+
+# === CONFIGURAÇÃO E AMBIENTE ===
+python-dotenv==1.1.1  # Gerenciamento de variáveis de ambiente
+pydantic==2.5.0  # Validação de dados e modelos
+
+# === UTILITÁRIOS ===
+tqdm==4.66.1  # Barras de progresso
+pathlib2==2.3.7; python_version < "3.4"  # Compatibilidade com versões antigas
+
+# === DESENVOLVIMENTO (opcional) ===
+# pytest==7.4.3  # Testes unitários
+# black==23.12.0  # Formatação de código  
+# flake8==6.1.0  # Linting
+# mypy==1.7.1  # Type checking
+
+# === INSTALAÇÃO ===
+# Para instalar as dependências principais:
+# pip install -r requirements.txt
+#
+# Para instalar com dependências de desenvolvimento:  
+# pip install -r requirements.txt pytest black flake8 mypy
