@@ -102,6 +102,51 @@ def setup_directories():
     ]:
         directory.mkdir(parents=True, exist_ok=True)
 
+
+from pathlib import Path
+import json
+
+def create_default_parties_config():
+    """Cria um arquivo config/prompts/summary_templates/parties.json com valores padrão se não existir."""
+    default = {
+        "parties": [
+            {
+                "id": "ootdl",
+                "name": "Odyssey of the Dragonlords",
+                "short_name": "OOTDL",
+                "description": "Campanha principal de Odyssey of the Dragonlords",
+                "context_files": ["ootdl_characters.txt", "ootdl_places.txt", "ootdl_lore.txt"],
+                "default_template": "summary-ootdl.txt",
+                "languages": ["pt", "en"]
+            },
+            {
+                "id": "avernus",
+                "name": "Descent into Avernus",
+                "short_name": "DAA",
+                "description": "Campanha oficial Baldur's Gate: Descent into Avernus",
+                "context_files": ["avernus_characters.txt", "avernus_places.txt"],
+                "default_template": "summary-detailed.txt",
+                "languages": ["pt"]
+            },
+            {
+                "id": "homebrew",
+                "name": "Custom Homebrew Campaign",
+                "short_name": "Homebrew",
+                "description": "Campanha personalizada criada pelo mestre",
+                "context_files": ["homebrew_context.txt"],
+                "default_template": "summary-creative.txt",
+                "languages": ["pt", "en"]
+            }
+        ]
+    }
+    file_path = Path("config/prompts/summary_templates/parties.json")
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(default, f, indent=2, ensure_ascii=False)
+    print(f"✅ Arquivo padrão de parties criado: {file_path}")
+
+
+
 # --- Transcrição de áudio com Whisper ---
 
 def transcribe_audio():
