@@ -86,6 +86,85 @@ def setup_directories():
         directory.mkdir(parents=True, exist_ok=True)
 
 # --- Transcrição de áudio com Whisper ---
+def transcribe_audio(): # Rápido
+    """Versão otimizada usando faster-whisper"""
+    try:
+        from faster_whisper import WhisperModel
+        print("Usando faster-whisper para melhor performance...")
+        
+        # Modelo otimizado
+        model = WhisperModel("small", device="cuda", compute_type="float16")
+        use_faster = True
+    except ImportError:
+        print("faster-whisper não instalado, usando whisper padrão...")
+        import whisper
+        model = whisper.load_model("small", device="cuda")
+        use_faster = False
+    
+    AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    TEMP_TRANSCRIPTIONS.mkdir(parents=True, exist_ok=True)
+    
+    flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
+    total_files = len(flac_files)
+    
+    for i, audio in enumerate(flac_files, 1):
+        output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
+        if output_json.exists():
+            print(f"[{i}/{total_files}] {audio.name} já transcrito, pulando.")
+            continue
+
+        print(f"[{i}/{total_files}] Transcrevendo {audio.name}...")
+        start_time = time.time()
+        
+        try:
+            if use_faster:
+                segments, info = model.transcribe(str(audio), language="pt")
+                segments_list = [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
+            else:
+                result = model.transcribe(str(audio), language="pt")
+                segments_list = result["segments"]
+            
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump(segments_list, f, indent=2, ensure_ascii=False)
+            
+            elapsed = time.time() - start_time
+            print(f"✅ Concluído em {elapsed:.1f}s")
+            
+        except Exception as e:
+            print(f"❌ Erro ao transcrever {audio.name}: {e}")
+
+
+def transcribe_audio_Otimizado(): # Otimizado
+    from faster_whisper import WhisperModel
+    
+    # Modelo otimizado com CTranslate2
+    model = WhisperModel("small", device="cuda", compute_type="float16")
+    
+    flac_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"))
+    
+    for audio in flac_files:
+        output_json = TEMP_TRANSCRIPTIONS / f"{audio.stem}.json"
+        if output_json.exists():
+            continue
+            
+        print(f"Transcrevendo {audio.name}...")
+        segments, info = model.transcribe(str(audio), language="pt")
+        
+        # Converte para formato compatível
+        segments_list = []
+        for segment in segments:
+            segments_list.append({
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text
+            })
+        
+        with open(output_json, "w", encoding="utf-8") as f:
+            json.dump(segments_list, f, indent=2, ensure_ascii=False)
+
+
+
+'''
 def transcribe_audio():
     """
     Transcribe all FLAC files in AUDIO_OUTPUT_DIR using Whisper.
@@ -121,6 +200,8 @@ def transcribe_audio():
         with open(output_json, "w", encoding="utf-8") as f:
             json.dump(result["segments"], f, indent=2, ensure_ascii=False)
         print(f"Transcrição salva: {output_json.name}")
+
+'''
 
 
 # --- Combinação de transcrições ---
