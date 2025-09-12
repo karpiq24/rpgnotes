@@ -348,12 +348,21 @@ def combine_transcriptions(session_number: int) -> Path | None:
         stem = seg_file.stem
         speaker_key = stem.split("-",1)[-1]
         speaker = mapping.get(speaker_key, speaker_key)
+        IGNORE_SPEAKERS = {"craig", "botyan", "bot_yan", "bot yan"}
+        
         for seg in data:
-            text = seg.get("text","").strip()
-            if not text: 
+            text = seg.get("text", "").strip()
+            if not text:
+                continue
+
+            # Filtra speakers indesejados (case-insensitive)
+            speaker_key_lower = speaker.lower().replace(" ", "").replace("_", "")
+            if any(bot in speaker_key_lower for bot in IGNORE_SPEAKERS):
+            # pula segmento do bot
                 continue
             seg["speaker"] = speaker
             segments.append(seg)
+
 
     # Ordena por tempo de início
     segments.sort(key=lambda s: s["start"])
