@@ -86,7 +86,33 @@ def setup_directories():
         directory.mkdir(parents=True, exist_ok=True)
 
 # --- Transcrição de áudio com Whisper ---
-def transcribe_audio(): # Rápido
+def transcribe_audio(): # Seguro
+    """Versão segura que faz fallback para CPU se GPU falhar"""
+    
+    # Primeiro tenta GPU
+    try:
+        from faster_whisper import WhisperModel
+        model = WhisperModel("small", device="cuda", compute_type="float16")
+        print("Usando GPU com faster-whisper...")
+        device_info = "GPU (faster-whisper)"
+    except Exception as gpu_error:
+        print(f"⚠️ GPU falhou: {gpu_error}")
+        try:
+            # Fallback para CPU com faster-whisper
+            model = WhisperModel("small", device="cpu", compute_type="int8")
+            print("Usando CPU com faster-whisper...")
+            device_info = "CPU (faster-whisper)"
+        except ImportError:
+            # Fallback final para whisper original
+            import whisper
+            model = whisper.load_model("small", device="cpu")
+            print("Usando CPU com whisper original...")
+            device_info = "CPU (whisper original)"
+    
+    # Resto da função igual...
+
+
+def transcribe_audio_fast(): # Rápido
     """Versão otimizada usando faster-whisper"""
     try:
         from faster_whisper import WhisperModel
@@ -202,6 +228,114 @@ def transcribe_audio():
         print(f"Transcrição salva: {output_json.name}")
 
 '''
+
+def load_parties_config() -> dict:
+    """Carrega configuração automatizada das parties"""
+    config_file = Path("config/parties.json")
+    
+    if not config_file.exists():
+        # Cria configuração padrão se não existir
+        create_default_parties_config()
+    
+    with open(config_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def get_available_parties(language: str) -> list:
+    """Retorna parties disponíveis para o idioma especificado"""
+    config = load_parties_config()
+    available = []
+    
+    for party in config["parties"]:
+        if language in party["languages"]:
+            available.append(party)
+    
+    return available
+
+def get_available_templates() -> list[Path]:
+    """Detecta automaticamente templates disponíveis"""
+    template_dirs = [
+        Path("config/templates"),
+        Path("config/prompts/summary_templates"), 
+        Path("templates"),
+        Path("prompts")
+    ]
+    
+    templates = []
+    for template_dir in template_dirs:
+        if template_dir.exists():
+            templates.extend(template_dir.glob("summary-*.txt"))
+            templates.extend(template_dir.glob("*template*.txt"))
+    
+    return sorted(list(set(templates)))  # Remove duplicatas
+
+def get_party_choice_automated(language: str) -> dict:
+    """Escolha automatizada de party com detecção dinâmica"""
+    available_parties = get_available_parties(language)
+    
+    if not available_parties:
+        print(f"❌ Nenhuma party disponível para o idioma '{language}'")
+        return None
+    
+    print(f"\n🎭 Parties disponíveis para {language.upper()}:")
+    for idx, party in enumerate(available_parties, 1):
+        print(f"  [{idx}] {party['name']} ({party['short_name']})")
+        print(f"      {party['description']}")
+    
+    print(f"  [custom] Digite um nome personalizado")
+    
+    while True:
+        choice = input(f"\nEscolha a party [1-{len(available_parties)}/custom]: ").strip()
+        
+        try:
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(available_parties):
+                selected = available_parties[choice_num - 1]
+                print(f"✅ Party selecionada: {selected['name']}")
+                return selected
+        except ValueError:
+            if choice.lower() == 'custom':
+                custom_name = input("Digite o nome da party personalizada: ").strip()
+                return {
+                    "id": "custom",
+                    "name": custom_name,
+                    "short_name": custom_name,
+                    "description": "Party personalizada",
+                    "context_files": [],
+                    "default_template": None,
+                    "languages": [language]
+                }
+        
+        print(f"❌ Escolha inválida.")
+
+def choose_template_automated(party: dict) -> Path:
+    """Escolha automatizada de template com sugestão baseada na party"""
+    available_templates = get_available_templates()
+    
+    if not available_templates:
+        print("❌ Nenhum template encontrado!")
+        return None
+    
+    # Sugere template padrão da party se disponível
+    if party.get("default_template"):
+        default_template = Path(f"config/templates/{party['default_template']}")
+        if default_template.exists():
+            print(f"💡 Sugerindo template padrão para {party['short_name']}: {default_template.name}")
+    
+    print(f"\n📋 Templates disponíveis:")
+    for idx, template in enumerate(available_templates, 1):
+        display_name = template.stem.replace("summary-", "").replace("template-", "")
+        print(f"  [{idx}] {display_name} ({template.name})")
+    
+    while True:
+        try:
+            choice = int(input(f"Escolha o template [1-{len(available_templates)}]: "))
+            if 1 <= choice <= len(available_templates):
+                selected = available_templates[choice - 1] 
+                print(f"✅ Template selecionado: {selected.name}")
+                return selected
+        except ValueError:
+            pass
+        print(f"❌ Escolha inválida.")
 
 
 # --- Combinação de transcrições ---
