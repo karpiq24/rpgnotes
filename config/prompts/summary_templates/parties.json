@@ -7,7 +7,11 @@
       "description": "Campanha principal de Odyssey of the Dragonlords",
       "context_files": ["ootdl_characters.txt", "ootdl_places.txt", "ootdl_lore.txt"],
       "default_template": "summary-ootdl.txt",
-      "languages": ["pt", "en"]
+      "languages": ["pt", "en"],
+      "frequencia_dia_horario": "a definir",
+      "nivel_inicial": "a definir",
+      "personagens": "a definir",
+      "objetivos_temas": "Exploração épica, mitologia grega, profecias e destino dos heróis."
     },
     {
       "id": "avernus",
@@ -16,7 +20,50 @@
       "description": "Campanha oficial Baldur's Gate: Descent into Avernus",
       "context_files": ["avernus_characters.txt", "avernus_places.txt"],
       "default_template": "summary-detailed.txt",
-      "languages": ["pt"]
+      "languages": ["pt"],
+      "frequencia_dia_horario": "Domingo",
+      "nivel_inicial": "02",
+      "personagens": "a definir",
+      "objetivos_temas": "Exploração infernal, dilemas morais, combate contra forças demoníacas."
+    },
+    {
+      "id": "fonte_desejos_turva",
+      "name": "Fonte dos Desejos Turva",
+      "short_name": "FDT",
+      "description": "Os personagens viajam em direção ao Reino de Skarsgård. No caminho, encontram uma fada chamada Pena, que pede ajuda. A jornada deles se inicia a partir desse encontro.",
+      "context_files": ["fdt_characters.txt", "fdt_places.txt"],
+      "default_template": "summary-detailed.txt",
+      "languages": ["pt"],
+      "frequencia_dia_horario": "Terça-feira",
+      "nivel_inicial": "02",
+      "personagens": "a definir",
+      "objetivos_temas": "Exploração, ajuda a entidades mágicas, jornada em direção a Skarsgård."
+    },
+    {
+      "id": "sombras_merritt",
+      "name": "Sombras de Merritt",
+      "short_name": "SM",
+      "description": "Campanha de mercenários desesperançosos em meio à Sombra da Guerra. Eles encontram uma oportunidade ao conhecer o barão falido Leo Wilson. A missão inicial é ajudá-lo a retomar sua propriedade, servindo a ele na esperança de riqueza.",
+      "context_files": ["sm_characters.txt", "sm_places.txt"],
+      "default_template": "summary-detailed.txt",
+      "languages": ["pt"],
+      "frequencia_dia_horario": "Terça-feira",
+      "nivel_inicial": "02",
+      "personagens": "a definir",
+      "objetivos_temas": "Sobrevivência, ambição, serviço a um barão falido, busca por riqueza."
+    },
+    {
+      "id": "ootdl_deserto",
+      "name": "Esperança no Deserto",
+      "short_name": "EnD",
+      "description": "Os jogadores viajam às terras de Apios em busca de um artefato lendário chamado A Semente, solicitado por Rohrik Alvo, diretor da academia. No trajeto, enfrentam perdas e descobertas, e agora estão chegando à cidade de Coração, onde a Semente está guardada.",
+      "context_files": ["ootdl_ed_characters.txt", "ootdl_ed_places.txt"],
+      "default_template": "summary-ootdl.txt",
+      "languages": ["pt"],
+      "frequencia_dia_horario": "Quinta-feira",
+      "nivel_inicial": "10",
+      "personagens": "a definir",
+      "objetivos_temas": "Exploração, busca por artefato, sobrevivência em terras hostis, descobertas mitológicas."
     },
     {
       "id": "homebrew",
@@ -25,7 +72,11 @@
       "description": "Campanha personalizada criada pelo mestre",
       "context_files": ["homebrew_context.txt"],
       "default_template": "summary-creative.txt", 
-      "languages": ["pt", "en"]
+      "languages": ["pt", "en"],
+      "frequencia_dia_horario": "a definir",
+      "nivel_inicial": "a definir",
+      "personagens": "a definir",
+      "objetivos_temas": "a definir"
     }
   ]
 }
