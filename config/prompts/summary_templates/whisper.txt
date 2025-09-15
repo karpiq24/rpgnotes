@@ -1,0 +1,193 @@
+Em breve será gravada uma sessão de Dungeons and Dragons em polonês.
+Os jogadores usam linguagem coloquial com elementos de fantasia.
+Regras do jogo, nomes de perícias, magias e alguns termos podem aparecer em inglês ou na sua tradução para português/inglês.
+Por favor, preste atenção especial à ortografia correta dos nomes próprios, termos e expressões frequentes listados abaixo.
+
+**Jogadores (nomes de exemplo que podem aparecer):**
+Gibby, Guilherme, Bel, Vitória, Miguel, Kaique, Fellipe, Matheus, Darian, Eric, James
+
+**Personagens dos jogadores (personagens no jogo):**
+- Party 01
+* Elion - Naiáde Feiticeiro / Nayad Sorcerer (The Vanished One)
+* Yelena - Sátira Ladina / Satyr Rogue (The Exile)
+* Kaýrion - Eladrin Paladino / Eladrin Paladin (The Demigod Pythor)
+* Basil - Anão Feiticeiro / Dwarf Sorcerer (The Doomed One)
+* Zephyr - Aasimar Bruxo / Aasimar Warlock (The Haunted One)
+* Atlas - Aasimar Bárbaro / Aasimar Barbarian (The Masterpiece)
+
+- Party 02
+* Adonis - Satyr Paladin / Sátiro Paladino (The Demigod Pythor)
+* Cygon - Medusa Monk / Medusa Monge (The Cursed One)
+* Psiloritis - Nymph Fighter / Ninfa Guerreiro (The Haunted One)
+* Finn - Changeling Druid / Changeling Druida (The Timeless One)
+
+- Party 03
+* 
+
+**Os Cinco Deuses (The Five Gods):**
+
+* Kyrah — Deusa da Música / *Goddess of Music*
+* Mytros — Deusa da Aurora / *Goddess of Dawn*
+* Pythor — Deus da Batalha / *God of War*
+* Vallus — Deusa da Sabedoria / *Goddess of Wisdom*
+* Volkan — Deus dos Ferreiros / *God of Smiths*
+
+**Titãs (The Titans):**
+
+* Thylea — Deusa Mãe / *Mother Goddess*
+* Kentimane — o dos Cem Braços / *Kentimane the Hundred-Handed*
+* Sydon — Senhor das Tempestades / *Lord of Storms*
+* Lutheria — Senhora dos Sonhos e da Morte / *Lady of Dreams and Death*
+* Chalcia — Titã(na) da Velocidade / *Titaness of Speed*
+* Goloron — Titã da Sabedoria / *Titan of Wisdom*
+* Hergeron — Titã da Força / *Titan of Strength*
+* Talieus — Titã do Ofício / *Titan of Craft*
+* Yala — Titã(na) da Beleza / *Titaness of Beauty*
+* Versi — Titã(na) da Profecia / *Titaness of Prophecy*
+
+**Dragões (Dragons):**
+
+* Balmytria — prata / *silver* (antiga encarnação de Mytros)
+* Sybolkorax — bronze / *brown* (antiga encarnação de Volkan)
+* Tysophale — bronze / *brown* (antiga encarnação de Vallus)
+* Raspytrion — bronze / *brown* (antiga encarnação de Pythor)
+* Arkyrania — bronze / *brown* (antiga encarnação de Kyrah)
+* Arystonar — bronze / *brown* (antiga encarnação de Narsus)
+* Hexia — verde / *green*
+* Hezzebal — mosiço / *brass*
+* Orichalkos — mosiço / *brass*
+* Chaeristis — cobre / *copper*
+* Zarmulax — vermelho / *red*
+* Icarus — prata / *silver* (dragão de Acastus)
+* Argyn — prata / *silver* (dragoa de Gaius)
+* Nephele — prata / *silver* (clone de Balmytria)
+* Ventis — cobre / *copper*
+
+**Outros NPCs (Personagens não-jogadores):**
+Versi (Oráculo, Naiade / *Oracle, Naiad*)
+Acastus (Rei de Mytros)
+Anora (Rainha de Estoria — filha de Pythor)
+Estor Arkelander (espírito, ex-Senhor Dragão)
+Damon (lich, guardião da Necrópole)
+Gaius (comandante da Ordem de Sydon)
+Chondrus (sacerdote/consigliere ligado a Lutheria, conselheiro de Acastus)
+Moxena (Dona das Moedas — Medusa)
+Aesop (sacerdote em Estoria)
+Bullbug (minotauro-gladiador)
+Darien (rainha das Amazonas)
+Nessa (centáurea)
+Pholon (centauro)
+Steros (Jancan — ciclope-ferreiro)
+Bront (Jancan — pai de Steros)
+Despina (ancestral de Felicjan)
+Corinna (descendente dos Senhores Dragões)
+Xander Hourath (primeiro Senhor Dragão)
+Taran Neurdagon (mercador de Mytros)
+Bella (concubina de Acastus)
+Ismene
+Lyra
+Makhaila
+Melania
+Sulla Neurdagon
+Apasia
+Alexandros
+Tarchon (capitão de Acastus)
+Grimmik (armeiro em Mytros)
+Zorin (alquimista em Mytros)
+Astra
+Grecosia
+Rhea
+Demetria (dríade — irmã do Oráculo Versi)
+Delphia (naiade — mãe de Versi e Demetria)
+Karpathos (vampiro, ex-Senhor Dragão)
+Helios (dragão dourado que se faz passar por deus)
+Rainha Helen (soberana de Arezia)
+Lotis (a bruxa — gynosphinx na Ilha do Escorpião)
+Androsphinx (governante da Ilha do Tempo)
+as Fúrias (Alecto, Megaera, Tisiphone)
+Phaeros (anjo caído)
+Scylla (monstro marinho)
+Jankor (rei dos lagarto-pessoas)
+Vytha (rainha dos lagarto-pessoas)
+Senhores Dragões (ordem)
+Zakroth (líder minotauro)
+
+**Locais (Locations):**
+
+* Thylea (continente)
+* Mytros (cidade): Templo dos Cinco Deuses / *Temple of the Five*; Academia / *The Academy*; Grande Palácio / *The Great Palace*; Stygian Row; Monte Volkan / *Mount Volkan*; Vinhedos de Mytros / *Vineyards of Mytros*; Colosso de Pythor / *Colossus of Pythor*
+* Estoria (cidade): Santuário/Templo do Dragão / *Dragon Shrine*
+* Aresia (cidade-estado)
+* Navio Ultros / *The Ultros*
+* Necrópole de Telamok / *Necropolis of Telamok*
+* Forja Mithral / *Mithral Forge*
+* Floresta Antiga / *Oldwood*: Templo Musgoso / *Mossy Temple*
+* Templo do Oráculo / *Temple of the Oracle*
+* Rosos (aldeia)
+* Cachoeiras Mortas / *Dead Falls*
+* Golfo Ceruleano / *Cerulean Gulf*: Ilha do Coração Dourado / *Golden Heart Island*, Ilha das Moiras / *Island of the Fates*, Ilha do Escorpião / *Scorpion Island*, Ilha Índigo / *Indigo Island*, Ruína do Titã / *Titan's Folly*, Ilha de Fogo / *Fire Island*, Ilha Yonder, Ilha dos Exilados / *Isle of Exiles*, Ilha Themis / *Themis Island*
+* Mar Esquecido / *Forgotten Sea*: Praxys (torre de Sydon), Typhon (a Fauce / *The Maw*), Charybdis (o redemoinho), Jardim de Helios / *Garden of Helios*, Ilha do Dragão / *Island of the Dragon*, Ilha do Tempo / *Island of Time*
+* Mar do Abismo / *Nether Sea*: Hypnos (Trono dos Sonhos — barca de Lutheria), Ilha dos Juramentos Quebrados / *Island of the Oathbreakers*, Prisão Espelhada / *Mirror Prison*, Cubos de Ferro / *Iron Cubes*
+* Reino Submerso / *Sunken Kingdom*: A Fenda / *The Chasm*
+
+**Monstros e criaturas (Monsters & Creatures):**
+Cérbero / *Cerberus*, Ciclope / *Cyclops*, Gygan, Jancan, Blemys, Hidra / *Hydra*, Harpia / *Harpy*, Minotauro / *Minotaur*, Esfinge / *Sphinx* (Gynosphinx, Androsphinx, Hierocosphinx, Criosphinx), Grifo / *Griffon*, Tritão / *Triton*, Golems (pedra/stone, ferro/iron, argila/clay, mármore/marble), Esqueleto / *Skeleton*, Zumbi / *Zombie*, Vampiro / *Vampire*, Lich, Dragão / *Dragon* (verde/green, vermelho/red, cobre/copper, bronze/bronze, latão/brass, prata/silver, dourado/gold), Centauro / *Centaur*, Sátiro / *Satyr*, Ninfa / *Nymph* (dríade/dryad, naiade/naiad, oread/oread, nereida/nereid, oceanida/oceanid), Sereia / *Siren*, Medusa / *Medusa* (Euryale), Myrmekes, Keledone, Behemoth, Ichthys, Nuckle, Maenada / *Maenad*, Goatling, Yugoloths (Arcanaloth, Mezzoloth, Nycaloth, Ultroloth), Erynie / *Erinyes*, Espectro / *Specter*, Wraith, Ghoul, Peryton, Shriekers, Mantícora / *Manticore*
+
+**Itens (Items):**
+Chifre de Balmytria / *Horn of Balmytria*; Antikythera; Cetro do Comando / *Rod of Rulership*; Caduceu / *Caduceus*; Ambrosia; Fogo Prometeico / *Promethean Fire*; Machado de Xander / *Axe of Xander*; Peitoral de Mytros / *Breastplate of Mytros*; Escudo de Volkan / *Shield of Volkan*; Coroa dos Senhores Dragões / *Crown of the Dragonlords*; Glaive de Sydon / *Glaive of Sydon*; Foice de Lutheria / *Scythe of Lutheria*; Martelo de Pythor / *Pythor's Hammer*; Fortaleza Instantânea / *Instant Fortress*
+
+**Expressões e terminologia comum de D\&D (Common D\&D terms):**
+
+* rolagem de iniciativa — *initiative roll*
+* teste de perícia — *skill check*
+* pontos de vida (HP) — *hit points*
+* classe de armadura (CA / AC) — *armor class*
+* ataque — *attack*
+* dano — *damage*
+* rolagem de dados — *dice roll* (d20, d10, d8, d6, d4)
+* teste de resistência / salvaguarda — *saving throw*
+* vantagem / desvantagem — *advantage / disadvantage*
+* ataque de oportunidade — *opportunity attack*
+* turno — *turn*
+* rodada — *round*
+* ação — *action*
+* ação bônus — *bonus action*
+* reação — *reaction*
+* movimento — *movement*
+* magias / feitiços — *spells*
+* espaço de magia — *spell slot*
+* truque — *cantrip*
+* dado de vida — *hit die*
+* descanso longo — *long rest*
+* descanso curto — *short rest*
+* acerto crítico — *critical hit*
+* NPC — *non-player character*
+* Mestre de Jogo — *DM / GM*
+* ficha de personagem — *character sheet*
+* experiência — *XP*
+* nível — *level*
+* concentração — *concentration*
+* percepção — *perception*
+* equipamento — *equipment*
+* masmorras — *dungeons*
+* cobertura — *cover*
+* surpresa — *surprise*
+* condição (ex.: restringido / *restrained*, cego / *blinded*, envenenado / *poisoned*) — *condition*
+* resistência — *resistance*
+* imunidade — *immunity*
+* vulnerabilidade — *vulnerability*
+* proficiência — *proficiency*
+* bônus de proficiência — *proficiency bonus*
+* habilidade / perícia — *skill*
+* talento — *feat*
+* atributo (Força/Strength, Destreza/Dexterity, Constituição/Constitution, Inteligência/Intelligence, Sabedoria/Wisdom, Carisma/Charisma) — *ability scores*
+
+**Raças (Races):**
+Humano / *Human*, Elfo / *Elf*, Anão / *Dwarf*, Pequenino / Halfling, Meio-elfo / *Half-elf*, Meio-orc / *Half-orc*, Tiefling, Aasimar, Dragonborn, Gnomo / *Gnome*, Centauro / *Centaur*, Minotauro / *Minotaur*, Medusa / *Medusa*, Ninfa / *Nymph*, Sátiro / *Satyr*, Sereia / *Siren*
+
+**Classes (Classes):**
+Bárbaro / *Barbarian*, Bardo / *Bard*, Mago / *Wizard*, Druida / *Druid*, Clérigo / *Cleric*, Ladino / *Rogue*, Patrulheiro / *Ranger*, Monge / *Monk*, Paladino / *Paladin*, Guerreiro / *Fighter*, Feiticeiro / *Sorcerer*, Bruxo / *Warlock*
+
+---
+
+Por favor, reconheça e transcreva com precisão esses termos, mesmo que a pronúncia dos jogadores esteja imprecisa.
