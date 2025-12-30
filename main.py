@@ -199,15 +199,15 @@ class _CustomProgressBar(tqdm):
         self._last_update_time = current_time
 
 
-def transcribe_audio():
+def transcribe_audio() -> bool:
     """
     Transcribes all FLAC audio files in the audio directory using Whisper.
-    Skips files that have already been transcribed.
+    Returns True if successful, False if an error occurred.
     """
     model_name = "large"
-    device = "cuda" # 'cuda' for NVIDIA GPUs, 'cpu' for CPU
+    device = "cuda" # 'cuda' for NVIDIA/AMD GPUs via ROCm
 
-    # Check if all audio files are already transcribed before loading the model
+    # Check if all audio files are already transcribed
     audio_files = sorted(AUDIO_OUTPUT_DIR.glob("*.flac"), key=os.path.getsize)
     files_to_transcribe = [
         f for f in audio_files
@@ -216,7 +216,7 @@ def transcribe_audio():
 
     if not files_to_transcribe:
         print("All audio files already transcribed. Skipping.")
-        return
+        return True
 
     # Inject custom progress bar into Whisper
     transcribe_module = sys.modules['whisper.transcribe']
@@ -225,9 +225,9 @@ def transcribe_audio():
     try:
         model = whisper.load_model(model_name, device=device, download_root="./models/")
     except Exception as e:
-        print(f"Error loading Whisper model: {e}")
-        print("Ensure you have a compatible CUDA version or change device to 'cpu'.")
-        return
+        print(f"❌ Error loading Whisper model: {e}")
+        print("Ensure you have a compatible ROCm/CUDA version installed.")
+        return False
 
     with open(WHISPER_PROMPT_FILE, "r", encoding='utf-8') as f:
         initial_prompt = f.read().strip()
@@ -239,13 +239,18 @@ def transcribe_audio():
             result = model.transcribe(
                 str(audio_file),
                 language="pl",
-                initial_prompt=initial_prompt
+                initial_prompt=initial_prompt,
+                fp16=False 
             )
             with open(json_output_path, "w", encoding='utf-8') as f:
                 json.dump(result["segments"], f, indent=2, ensure_ascii=False)
             print(f"\nTranscription of '{audio_file.name}' saved.")
+            
         except Exception as e:
-            print(f"Error transcribing '{audio_file.name}': {e}")
+            print(f"\n❌ CRITICAL ERROR transcribing '{audio_file.name}': {e}")
+            return False
+
+    return True
 
 
 def combine_transcriptions(session_number: int) -> Path | None:
@@ -451,14 +456,16 @@ def run_transcription_workflow():
     print("✅ Audio files are ready.")
 
     print("\n[Step 3/4] Transcribing Audio...")
-    transcribe_audio()
+    if not transcribe_audio():
+        print("❌ Transcription failed. Aborting workflow to prevent incomplete data.")
+        return None
     print("✅ Transcription complete.")
-    
+
     print("\n[Step 4/4] Combining Transcriptions...")
     transcript_file = combine_transcriptions(session_number)
     if not transcript_file:
          print("❌ Error combining transcriptions. Aborting workflow.")
-         return
+         return None
     print("✅ Transcriptions combined.")
     
     end_time = time.time()
