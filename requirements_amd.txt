@@ -1,0 +1,11 @@
+--index-url https://download.pytorch.org/whl/nightly/rocm7.0
+--extra-index-url https://pypi.org/simple
+
+torch
+torchvision
+torchaudio
+
+openai-whisper==20250625  # https://github.com/openai/whisper
+google-generativeai==0.8.5  # https://github.com/google-gemini/generative-ai-python
+instructor[google-generativeai]==1.9.2  # https://github.com/instructor-ai/instructor
+python-dotenv==1.1.1  # https://github.com/theskumar/python-dotenv

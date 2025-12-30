@@ -12,7 +12,7 @@ from pathlib import Path
 import whisper
 import instructor
 import google.generativeai as genai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from dotenv import load_dotenv
 from tqdm import tqdm
 
@@ -332,7 +332,7 @@ class SessionData(BaseModel):
                        Każdy prompt powinien opisywać krótką, dynamiczną scenę (3-5 sekund), zawierającą ruch kamery, akcje postaci i zmiany w otoczeniu."""
     )
 
-def generate_session_notes(transcript_file: Path) -> tuple[str, str, SessionData] | None:
+def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData] | None:
     """Generates a detailed summary and structured data using the Gemini API."""
     if not GEMINI_API_KEY:
         print("GEMINI_API_KEY not set in .env file. Skipping note generation.")
@@ -489,6 +489,68 @@ def run_full_workflow():
     end_time = time.time()
     print(f"\n✨ Full workflow completed in {time.strftime('%H:%M:%S', time.gmtime(end_time - start_time))}. ✨")
 
+
+def run_manual_workflow():
+    """Handles the workflow for manually entering session notes."""
+    print("\n--- Manual Entry Workflow ---")
+    
+    # 1. Get session number and date from the latest chat log
+    print("\n[Step 1/3] Reading session info from the latest chat log...")
+    session_number, session_date = process_chat_log()
+    if session_number is None:
+        print("❌ Error processing chat log. Cannot proceed without a session number. Aborting.")
+        return
+
+    # Handle missing date, just like in the other workflows
+    if session_date is None:
+        today = datetime.date.today()
+        session_date = today - datetime.timedelta(days=today.weekday())
+        print(f"⚠️ Could not determine date from chat log. Defaulting to last Monday: {session_date.strftime('%Y-%m-%d')}")
+
+    print(f"✅ Found Session Number: {session_number}")
+    print(f"✅ Found Session Date: {session_date.strftime('%Y-%m-%d')}")
+
+    # 2. Get the summary text from the user
+    print("\n[Step 2/3] Enter the session summary.")
+    print("Paste your summary below. Press Ctrl+D (Unix) or Ctrl+Z then Enter (Windows) to finish.")
+    session_summary = sys.stdin.read().strip()
+    if not session_summary:
+        print("❌ Summary is empty. Aborting.")
+        return
+    print("✅ Summary received.")
+
+    # 3. Get the details JSON from the user and validate it
+    print("\n[Step 3/3] Enter the session details as JSON.")
+    print("Paste the JSON data below. Press Ctrl+D (Unix) or Ctrl+Z then Enter (Windows) to finish.")
+    
+    session_data = None
+    while session_data is None:
+        try:
+            # Re-enable stdin reading if it was closed
+            if sys.stdin.isatty() is False:
+                sys.stdin = open('/dev/tty')
+                
+            json_input = sys.stdin.read().strip()
+            if not json_input:
+                print("❌ JSON input is empty. Aborting.")
+                return
+            
+            # Use Pydantic to parse and validate the JSON input
+            session_data = SessionData.model_validate_json(json_input)
+            print("✅ JSON is valid and matches the required structure.")
+            
+        except (json.JSONDecodeError, ValidationError) as e:
+            print(f"❌ Data is invalid: {e}")
+            choice = input("Would you like to try again? [y/n]: ").lower()
+            if choice not in ['y', 'yes']:
+                print("Aborting.")
+                return
+            print("Please paste the JSON data again:")
+
+    # 4. Save the final file using the existing function
+    save_summary_file(session_summary, session_data, session_number, session_date)
+    print("\n✨ Manual entry workflow completed successfully. ✨")
+
 # --- Main Orchestration ---
 
 def handle_temp_directory():
@@ -524,15 +586,16 @@ def display_menu():
     print("Please choose an option:")
     print("  [1] Start Full Workflow (Transcribe -> Generate AI Notes)")
     print("  [2] Run Workflow until Transcribing (Generate transcript file only)")
-    print("  [3] Exit")
+    print("  [3] Manual Note Entry (from existing summary/details)")
+    print("  [4] Exit")
     print("="*50)
     
     while True:
         choice = input("Enter your choice [1-4]: ").strip()
-        if choice in ['1', '2', '3']:
+        if choice in ['1', '2', '3', '4']:
             return choice
         else:
-            print("❌ Invalid choice. Please enter a number from 1 to 3.")
+            print("❌ Invalid choice. Please enter a number from 1 to 4.")
 
 def main():
     """Main function to orchestrate the entire workflow via a menu."""
@@ -551,13 +614,14 @@ def main():
         elif choice == '2':
             print("\nStarting Transcription-Only Workflow...")
             run_transcription_workflow()
-
+        
         elif choice == '3':
+            print("\nStarting Manual Entry Workflow...")
+            run_manual_workflow()
+
+        elif choice == '4':
             print("\n👋 Exiting. Goodbye!")
             break
-        
-        print("\nReturning to main menu...")
-
 
 if __name__ == "__main__":
     main()
