@@ -34,6 +34,7 @@ DISCORD_MAPPING_FILE = Path(os.getenv("DISCORD_MAPPING_FILE"))
 WHISPER_PROMPT_FILE = Path(os.getenv("WHISPER_PROMPT_FILE"))
 SUMMARY_PROMPT_FILE = Path(os.getenv("SUMMARY_PROMPT_FILE"))
 DETAILS_PROMPT_FILE = Path(os.getenv("DETAILS_PROMPT_FILE"))
+QUOTES_PROMPT_FILE = Path(os.getenv("QUOTES_PROMPT_FILE"))
 TEMPLATE_FILE = Path(os.getenv("TEMPLATE_FILE"))
 CONTEXT_DIR = Path(os.getenv("CONTEXT_DIR"))
 
@@ -317,6 +318,12 @@ def combine_transcriptions(session_number: int) -> Path | None:
 
 # --- AI Generation and Note Creation ---
 
+class SectionVisuals(BaseModel):
+    """Visual prompts for a specific section of the summary."""
+    section_title: str = Field(description="Dokładny nagłówek ### z podsumowania, do którego odnoszą się te wizualizacje.")
+    images: list[str] = Field(description="Lista 2 szczegółowych promptów obrazów dla tej sekcji. Minimum 50 słów każdy, używając opisów wizualnych postaci.")
+    videos: list[str] = Field(description="Lista 2 szczegółowych promptów wideo dla tej sekcji. Minimum 50 słów każdy, z ruchem kamery i dynamiką.")
+
 class SessionData(BaseModel):
     """Pydantic model for structuring data extracted by Gemini."""
     title: str = Field(description="Tytuł sesji. Powinien być krótki, ale opisowy i chwytliwy.")
@@ -324,21 +331,29 @@ class SessionData(BaseModel):
     npcs: list[str] = Field(description="Lista najważniejszych postaci niezależnych (NPC), które pojawiły się lub odegrały kluczową rolę.")
     locations: list[str] = Field(description="Lista najważniejszych odwiedzonych lokacji.")
     items: list[str] = Field(description="Lista najważniejszych zdobytych lub użytych przedmiotów.")
-    quotes: list[str] = Field(description="Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, wraz z informacją, kto je wypowiedział. Np. 'Arevon: 'Coś tu jest nie tak.'.")
-    hooks: list[str] = Field(description="Lista 3-4 propozycji lub 'zajawek' na następną sesję, skierowanych do Mistrza Gry. Każda powinna być intrygującym pytaniem lub sytuacją wynikającą z wydarzeń tej sesji.")
-    images: list[str] = Field(
-        description="""Lista 10 promptów do użycia w generatorach obrazów AI, **napisanych w języku angielskim**.
-                       Każdy prompt powinien zaczynać się od słowa 'Draw'.
-                       Unikaj nazw własnych postaci, zamiast tego opisz ich wygląd i akcję.
-                       Stosuj różnorodne style artystyczne (np. 'oil painting', 'fantasy art', 'cinematic')."""
+    main_images: list[str] = Field(
+        description="""Lista 3 szczegółowych promptów obrazów reprezentujących całą sesję (wyświetlane pod tytułem).
+                       Każdy prompt minimum 50 słów, używając pełnych opisów wizualnych postaci.
+                       Napisane w języku angielskim, zaczynające się od 'Draw', 'Generate' itp."""
     )
-    videos: list[str] = Field(
-        description="""Lista 10 szczegółowych promptów do generowania **wideo**, **napisanych w języku angielskim**.
-                       Każdy prompt powinien opisywać krótką, dynamiczną scenę (3-5 sekund), zawierającą ruch kamery, akcje postaci i zmiany w otoczeniu."""
+    main_videos: list[str] = Field(
+        description="""Lista 3 szczegółowych promptów wideo reprezentujących całą sesję (wyświetlane pod tytułem).
+                       Każdy prompt minimum 50 słów, z ruchem kamery i dynamiką sceny.
+                       Napisane w języku angielskim."""
+    )
+    sections: list[SectionVisuals] = Field(
+        description="""Lista sekcji wizualnych, po jednej dla każdego nagłówka ### z podsumowania.
+                       Każda sekcja zawiera section_title (dokładny nagłówek ###), 2 prompty obrazów i 2 prompty wideo."""
     )
 
-def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData] | None:
-    """Generates a detailed summary and structured data using the Gemini API."""
+class QuotesData(BaseModel):
+    """Pydantic model for memorable quotes extracted from transcription."""
+    quotes: list[str] = Field(
+        description="Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, wraz z informacją, kto je wypowiedział. Np. 'Arevon: \"Coś tu jest nie tak.\"'."
+    )
+
+def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData, QuotesData] | None:
+    """Generates a detailed summary, structured data, and quotes using the Gemini API."""
     if not GEMINI_API_KEY:
         print("GEMINI_API_KEY not set in .env file. Skipping note generation.")
         return None
@@ -374,14 +389,14 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData] | N
     session_summary = summary_response.text
     print("Session summary generated.")
 
-    # --- Step 2: Extract Structured Details ---
+    # --- Step 2: Extract Structured Details (from summary only) ---
     print("Waiting for API rate limit...")
     time.sleep(10)
 
     with open(DETAILS_PROMPT_FILE, "r", encoding='utf-8') as f:
         details_prompt = f.read()
 
-    client = instructor.from_gemini(
+    details_client = instructor.from_gemini(
         client=genai.GenerativeModel(
             model_name=GEMINI_MODEL_NAME,
             system_instruction=details_prompt,
@@ -392,38 +407,91 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData] | N
     print("Extracting structured details...")
     details_messages = [{
         "role": "user",
-        "content": (
-            f"PODSUMOWANIE SESJI (użyj do generowania tytułu, wydarzeń, NPC, lokacji, przedmiotów i propozycji na następną sesję):\n{session_summary}\n\n"
-            f"PEŁNA TRANSKRYPCJA (użyj TYLKO do znalezienia pamiętnych cytatów):\n{transcript_content}"
-        )
+        "content": f"PODSUMOWANIE SESJI:\n{session_summary}"
     }]
 
-    session_data = client.chat.completions.create(
+    session_data = details_client.chat.completions.create(
         messages=details_messages,
         response_model=SessionData,
         max_retries=3,
     )
     print("Session details extracted.")
-    return session_summary, session_data
 
-def save_summary_file(session_summary: str, session_data: SessionData, session_number: int, session_date: datetime.date):
+    # --- Step 3: Extract Quotes (from transcription) ---
+    print("Waiting for API rate limit...")
+    time.sleep(10)
+
+    with open(QUOTES_PROMPT_FILE, "r", encoding='utf-8') as f:
+        quotes_prompt = f.read()
+
+    quotes_client = instructor.from_gemini(
+        client=genai.GenerativeModel(
+            model_name=GEMINI_MODEL_NAME,
+            system_instruction=quotes_prompt,
+        ),
+        mode=instructor.Mode.GEMINI_JSON,
+    )
+
+    print("Extracting memorable quotes...")
+    quotes_messages = [{
+        "role": "user",
+        "content": f"PEŁNA TRANSKRYPCJA:\n{transcript_content}"
+    }]
+
+    quotes_data = quotes_client.chat.completions.create(
+        messages=quotes_messages,
+        response_model=QuotesData,
+        max_retries=3,
+    )
+    print("Quotes extracted.")
+
+    return session_summary, session_data, quotes_data
+
+def save_summary_file(session_summary: str, session_data: SessionData, quotes_data: QuotesData, session_number: int, session_date: datetime.date):
     """Saves the generated notes to a formatted Markdown file."""
     with open(TEMPLATE_FILE, "r", encoding='utf-8') as f:
         template = f.read()
+
+    # Process summary to embed section-specific visuals after each section
+    processed_summary = session_summary
+    for section in session_data.sections:
+        # Find the section header in the summary
+        print(section.section_title.lstrip('# '))
+        section_header = f"### {section.section_title.lstrip('# ')}"
+        if section_header in processed_summary:
+            # Build the visual prompts block for this section
+            section_visuals = "\n\n**Propozycje Obrazów dla tej sekcji:**\n"
+            section_visuals += "\n".join(f"* `{img}`" for img in section.images)
+            section_visuals += "\n\n**Propozycje Wideo dla tej sekcji:**\n"
+            section_visuals += "\n".join(f"* `{vid}`" for vid in section.videos)
+            
+            # Find the next section header or end of summary
+            header_pos = processed_summary.find(section_header)
+            next_header_pos = processed_summary.find("\n### ", header_pos + len(section_header))
+            
+            if next_header_pos == -1:
+                # This is the last section, append at the end
+                processed_summary = processed_summary + section_visuals
+            else:
+                # Insert before the next section header
+                processed_summary = (
+                    processed_summary[:next_header_pos] +
+                    section_visuals + "\n" +
+                    processed_summary[next_header_pos:]
+                )
 
     output = template.format(
         number=session_number,
         title=session_data.title,
         date=session_date.strftime("%d.%m.%Y"),
-        summary=session_summary,
+        summary=processed_summary,
         events="\n".join(f"* {event}" for event in session_data.events),
         npcs="\n".join(f"* {npc}" for npc in session_data.npcs),
         locations="\n".join(f"* {loc}" for loc in session_data.locations),
         items="\n".join(f"* {item}" for item in session_data.items),
-        quotes="\n".join(f"* {quote}" for quote in session_data.quotes),
-        hooks="\n".join(f"* {hook}" for hook in session_data.hooks),
-        images="\n".join(f"* `{image}`" for image in session_data.images),
-        videos="\n".join(f"* `{video}`" for video in session_data.videos),
+        quotes="\n".join(f"* {quote}" for quote in quotes_data.quotes),
+        main_images="\n".join(f"* `{image}`" for image in session_data.main_images),
+        main_videos="\n".join(f"* `{video}`" for video in session_data.main_videos),
     )
 
     sane_title = re.sub(r'[\\/*?:"<>|]', "", session_data.title)
@@ -487,8 +555,8 @@ def run_full_workflow():
     print("\n[Step 5/5] Generating Session Notes with AI...")
     notes = generate_session_notes(transcript_file)
     if notes:
-        summary, details = notes
-        save_summary_file(summary, details, session_number, session_date)
+        summary, details, quotes = notes
+        save_summary_file(summary, details, quotes, session_number, session_date)
         print("✅ AI-powered session notes have been generated and saved.")
     else:
         print("⚠️ AI note generation was skipped or failed.")
@@ -502,7 +570,7 @@ def run_manual_workflow():
     print("\n--- Manual Entry Workflow ---")
     
     # 1. Get session number and date from the latest chat log
-    print("\n[Step 1/3] Reading session info from the latest chat log...")
+    print("\n[Step 1/4] Reading session info from the latest chat log...")
     session_number, session_date = process_chat_log()
     if session_number is None:
         print("❌ Error processing chat log. Cannot proceed without a session number. Aborting.")
@@ -518,7 +586,7 @@ def run_manual_workflow():
     print(f"✅ Found Session Date: {session_date.strftime('%Y-%m-%d')}")
 
     # 2. Get the summary text from the user
-    print("\n[Step 2/3] Enter the session summary.")
+    print("\n[Step 2/4] Enter the session summary.")
     print("Paste your summary below. Press Ctrl+D (Unix) or Ctrl+Z then Enter (Windows) to finish.")
     session_summary = sys.stdin.read().strip()
     if not session_summary:
@@ -527,7 +595,7 @@ def run_manual_workflow():
     print("✅ Summary received.")
 
     # 3. Get the details JSON from the user and validate it
-    print("\n[Step 3/3] Enter the session details as JSON.")
+    print("\n[Step 3/4] Enter the session details as JSON.")
     print("Paste the JSON data below. Press Ctrl+D (Unix) or Ctrl+Z then Enter (Windows) to finish.")
     
     session_data = None
@@ -544,7 +612,7 @@ def run_manual_workflow():
             
             # Use Pydantic to parse and validate the JSON input
             session_data = SessionData.model_validate_json(json_input)
-            print("✅ JSON is valid and matches the required structure.")
+            print("✅ Session details JSON is valid.")
             
         except (json.JSONDecodeError, ValidationError) as e:
             print(f"❌ Data is invalid: {e}")
@@ -554,8 +622,36 @@ def run_manual_workflow():
                 return
             print("Please paste the JSON data again:")
 
-    # 4. Save the final file using the existing function
-    save_summary_file(session_summary, session_data, session_number, session_date)
+    # 4. Get the quotes JSON from the user and validate it
+    print("\n[Step 4/4] Enter the quotes as JSON.")
+    print("Paste the JSON data below. Press Ctrl+D (Unix) or Ctrl+Z then Enter (Windows) to finish.")
+    
+    quotes_data = None
+    while quotes_data is None:
+        try:
+            # Re-enable stdin reading if it was closed
+            if sys.stdin.isatty() is False:
+                sys.stdin = open('/dev/tty')
+                
+            json_input = sys.stdin.read().strip()
+            if not json_input:
+                print("❌ JSON input is empty. Aborting.")
+                return
+            
+            # Use Pydantic to parse and validate the JSON input
+            quotes_data = QuotesData.model_validate_json(json_input)
+            print("✅ Quotes JSON is valid.")
+            
+        except (json.JSONDecodeError, ValidationError) as e:
+            print(f"❌ Data is invalid: {e}")
+            choice = input("Would you like to try again? [y/n]: ").lower()
+            if choice not in ['y', 'yes']:
+                print("Aborting.")
+                return
+            print("Please paste the JSON data again:")
+
+    # 5. Save the final file using the existing function
+    save_summary_file(session_summary, session_data, quotes_data, session_number, session_date)
     print("\n✨ Manual entry workflow completed successfully. ✨")
 
 # --- Main Orchestration ---

@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "quotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, wraz z informacją, kto je wypowiedział. Np. 'Arevon: \"Coś tu jest nie tak.\"'."
+    }
+  },
+  "required": [
+    "quotes"
+  ]
+}

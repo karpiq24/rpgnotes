@@ -2,13 +2,13 @@
 
 **Data:** {date}
 
-## Propozycje Obrazów
+## Główne Propozycje Obrazów
 
-{images}
+{main_images}
 
-## Propozycje Wideo
+## Główne Propozycje Wideo
 
-{videos}
+{main_videos}
 
 ## Podsumowanie
 
@@ -33,7 +33,3 @@
 ## Przedmioty
 
 {items}
-
-## Propozycje na Następną Sesję (Dla MG)
-
-{hooks}
