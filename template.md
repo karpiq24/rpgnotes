@@ -2,14 +2,6 @@
 
 **Data:** {date}
 
-## Główne Propozycje Obrazów
-
-{main_images}
-
-## Główne Propozycje Wideo
-
-{main_videos}
-
 ## Podsumowanie
 
 {summary}

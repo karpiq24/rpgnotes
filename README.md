@@ -88,7 +88,8 @@ The script is configured using a `.env` file and several configuration files in 
     CONTEXT_DIR="context" # Directory for supplemental campaign context
 
     # --- MODEL SETTINGS ---
-    GEMINI_MODEL_NAME="gemini-1.5-pro-latest"
+    GEMINI_PRO_MODEL="gemini-3.1-pro-preview"
+    GEMINI_FLASH_MODEL="gemini-3-flash-preview"
     ```
 
 ### 5. Set Up Configuration Files

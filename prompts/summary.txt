@@ -98,10 +98,14 @@ Kolejny akapit z nowym wątkiem lub wydarzeniem. Pamiętaj o szczegółach i pla
 *   **Bront:** Jancan, ojciec Sterosa, uwięziony przez Amazonki na Themis.
 *   **Królowa Helen:** Władczyni Arezji.
 *   **Wiedźma Lotosu (Lotus Witch):** Potężny gynosphinx na Wyspie Skorpiona, strażniczka wiedzy.
-*   **Androsphinx:** Władca Wyspy Czasu.
-*   **Furie (Alecto, Megaera, Tisiphone):** Boginie zemsty, egzekwujące kary za złamanie przysiąg i naruszenie praw gościnności.
-*   **Phaeros:** Upadły anioł, twórca zaginionego panteonu bogów, uwięziony w brzuchu Scylli.
-*   **Scylla:** Potworny stwór morski zamieszkujący Otchłań w Zatopionym Królestwie.
+*   **Furie (Alektro, Megara, Tyzyfone):** Boginie zemsty, egzekwujące kary za złamanie przysiąg i naruszenie praw gościnności.
+*   **Mojry (Morta, Nona, Decima):** Trzy siostry mieszkające na Wyspie Mojr, tkające nici losu.
+*   **Darien:** Prawowita królowa Amazonek z Themis, przywrócona na tron.
+*   **Hippolyta:** Liderka ruchu oporu Amazonek.
+*   **Paradox:** Starożytny smok strzegący czasu na Wyspie Czasu.
+*   **Idylla:** Matka króla Acastusa, wygnana na Wyspę Wygnańców.
+*   **Ophea:** Matka Oriona, więziona przez Hexię na Wyspie Smoka (uwolniona).
+*   **Stavros:** Samozwańczy "Król" Wyspy Wygnańców.
 
 ## Kluczowe Miejsca:
 *   **Thylea:** Kontynent, na którym rozgrywa się kampania, inspirowany mitologią grecką.
@@ -126,7 +130,7 @@ Kolejny akapit z nowym wątkiem lub wydarzeniem. Pamiętaj o szczegółach i pla
 *   **Złote Serce (Golden Heart):** Wyspa, na której rośnie drzewo będące sercem bogini Thylei.
 *   **Ogród Heliosa (Garden of Helios):** Wyspa na Morzu Zapomnianym, gdzie rezyduje Helios.
 *   **Wyspa Smoka (Island of the Dragon):** Wyspa na Morzu Zapomnianym, legowisko zielonej smoczycy Hexii.
-*   **Zatopione Królestwo (Sunken Kingdom):** Zatopione miasto syren, skrywające świątynie zaginionego panteonu i wejście do Otchłani (The Chasm).
+*   **Zatopione Królestwo (Sunken Kingdom):** Zatopione miasto syren.
 
 ## Ogólny Zarys Kampanii:
 Kampania "Odyssey of the Dragonlords" to epicka przygoda w świecie inspirowanym mitologią grecką. Bohaterowie, wybrani przez Wyrocznię, muszą wypełnić proroctwo, aby ocalić Thyleę przed zagładą z rąk Tytanów, Sydona i Lutherii. Przysięga Pokoju, która przez 500 lat chroniła śmiertelników, dobiega końca. Bohaterowie muszą odnaleźć artefakty, zdobyć sojuszników, zmierzyć się z potężnymi przeciwnikami i ostatecznie stawić czoła samym Tytanom. Ich podróż prowadzi przez trzy morza, pełne starożytnych ruin, mitycznych stworzeń i zapomnianych bogów. Kluczowe wątki obejmują odbudowę Zakonu Smoczych Lordów, odkrycie prawdy o Pięciu Bogach oraz osobiste misje bohaterów związane z ich Epickimi Ścieżkami.

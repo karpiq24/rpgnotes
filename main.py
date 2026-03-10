@@ -40,7 +40,8 @@ CONTEXT_DIR = Path(os.getenv("CONTEXT_DIR"))
 
 # API and Model Settings
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
+GEMINI_PRO_MODEL = os.getenv("GEMINI_PRO_MODEL")
+GEMINI_FLASH_MODEL = os.getenv("GEMINI_FLASH_MODEL")
 
 # --- Setup Directories ---
 # These are subdirectories for organized output
@@ -397,20 +398,6 @@ class SessionData(BaseModel):
     npcs: list[str] = Field(description="Lista najważniejszych postaci niezależnych (NPC), które pojawiły się lub odegrały kluczową rolę.")
     locations: list[str] = Field(description="Lista najważniejszych odwiedzonych lokacji.")
     items: list[str] = Field(description="Lista najważniejszych zdobytych lub użytych przedmiotów.")
-    main_images: list[str] = Field(
-        description="""Lista 3 szczegółowych promptów obrazów reprezentujących całą sesję (wyświetlane pod tytułem).
-                       Każdy prompt minimum 50 słów, używając pełnych opisów wizualnych postaci.
-                       Napisane w języku angielskim, zaczynające się od 'Draw', 'Generate' itp."""
-    )
-    main_videos: list[str] = Field(
-        description="""Lista 3 szczegółowych promptów wideo reprezentujących całą sesję (wyświetlane pod tytułem).
-                       Każdy prompt minimum 50 słów, z ruchem kamery i dynamiką sceny.
-                       Napisane w języku angielskim."""
-    )
-    sections: list[SectionVisuals] = Field(
-        description="""Lista sekcji wizualnych, po jednej dla każdego nagłówka ### z podsumowania.
-                       Każda sekcja zawiera section_title (dokładny nagłówek ###), 2 prompty obrazów i 2 prompty wideo."""
-    )
 
 class QuotesData(BaseModel):
     """Pydantic model for memorable quotes extracted from transcription."""
@@ -434,7 +421,7 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData, Quo
         summary_prompt = f.read()
 
     summary_model = genai.GenerativeModel(
-        model_name=GEMINI_MODEL_NAME,
+        model_name=GEMINI_PRO_MODEL,
         system_instruction=summary_prompt,
     )
     
@@ -443,28 +430,28 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData, Quo
     # Load general context from text and markdown files
     general_context = load_context_files(CONTEXT_DIR)
     if general_context:
-        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST KAMPANII:\n{general_context}"]})
+        summary_messages.append({"role": "user", "parts": [f"DODATKOWY KONTEKST KAMPANII:\n{general_context}\n\n---\n\n"]})
 
     summary_messages.append({"role": "user", "parts": [f"TRANSKRYPT OBECNEJ SESJI:\n{transcript_content}"]})
 
     print("Generating detailed session summary...")
     summary_response = summary_model.generate_content(
         summary_messages,
-        generation_config=genai.GenerationConfig(temperature=0.7),
+        generation_config=genai.GenerationConfig(temperature=1),
     )
     session_summary = summary_response.text
     print("Session summary generated.")
 
     # --- Step 2: Extract Structured Details (from summary only) ---
     print("Waiting for API rate limit...")
-    time.sleep(10)
+    time.sleep(3)
 
     with open(DETAILS_PROMPT_FILE, "r", encoding='utf-8') as f:
         details_prompt = f.read()
 
     details_client = instructor.from_gemini(
         client=genai.GenerativeModel(
-            model_name=GEMINI_MODEL_NAME,
+            model_name=GEMINI_FLASH_MODEL,
             system_instruction=details_prompt,
         ),
         mode=instructor.Mode.GEMINI_JSON,
@@ -485,14 +472,14 @@ def generate_session_notes(transcript_file: Path) -> tuple[str, SessionData, Quo
 
     # --- Step 3: Extract Quotes (from transcription) ---
     print("Waiting for API rate limit...")
-    time.sleep(10)
+    time.sleep(3)
 
     with open(QUOTES_PROMPT_FILE, "r", encoding='utf-8') as f:
         quotes_prompt = f.read()
 
     quotes_client = instructor.from_gemini(
         client=genai.GenerativeModel(
-            model_name=GEMINI_MODEL_NAME,
+            model_name=GEMINI_FLASH_MODEL,
             system_instruction=quotes_prompt,
         ),
         mode=instructor.Mode.GEMINI_JSON,
@@ -518,46 +505,16 @@ def save_summary_file(session_summary: str, session_data: SessionData, quotes_da
     with open(TEMPLATE_FILE, "r", encoding='utf-8') as f:
         template = f.read()
 
-    # Process summary to embed section-specific visuals after each section
-    processed_summary = session_summary
-    for section in session_data.sections:
-        # Find the section header in the summary
-        print(section.section_title.lstrip('# '))
-        section_header = f"### {section.section_title.lstrip('# ')}"
-        if section_header in processed_summary:
-            # Build the visual prompts block for this section
-            section_visuals = "\n\n**Propozycje Obrazów dla tej sekcji:**\n"
-            section_visuals += "\n".join(f"* `{img}`" for img in section.images)
-            section_visuals += "\n\n**Propozycje Wideo dla tej sekcji:**\n"
-            section_visuals += "\n".join(f"* `{vid}`" for vid in section.videos)
-            
-            # Find the next section header or end of summary
-            header_pos = processed_summary.find(section_header)
-            next_header_pos = processed_summary.find("\n### ", header_pos + len(section_header))
-            
-            if next_header_pos == -1:
-                # This is the last section, append at the end
-                processed_summary = processed_summary + section_visuals
-            else:
-                # Insert before the next section header
-                processed_summary = (
-                    processed_summary[:next_header_pos] +
-                    section_visuals + "\n" +
-                    processed_summary[next_header_pos:]
-                )
-
     output = template.format(
         number=session_number,
         title=session_data.title,
         date=session_date.strftime("%d.%m.%Y"),
-        summary=processed_summary,
+        summary=session_summary,
         events="\n".join(f"* {event}" for event in session_data.events),
         npcs="\n".join(f"* {npc}" for npc in session_data.npcs),
         locations="\n".join(f"* {loc}" for loc in session_data.locations),
         items="\n".join(f"* {item}" for item in session_data.items),
         quotes="\n".join(f"* {quote}" for quote in quotes_data.quotes),
-        main_images="\n".join(f"* `{image}`" for image in session_data.main_images),
-        main_videos="\n".join(f"* `{video}`" for video in session_data.main_videos),
     )
 
     sane_title = re.sub(r'[\\/*?:"<>|]', "", session_data.title)

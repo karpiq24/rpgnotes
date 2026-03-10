@@ -32,52 +32,6 @@
         "type": "string"
       },
       "description": "Lista najważniejszych zdobytych lub użytych przedmiotów."
-    },
-    "main_images": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Lista 3 szczegółowych promptów obrazów reprezentujących całą sesję (wyświetlane pod tytułem). Każdy prompt minimum 50 słów, używając pełnych opisów wizualnych postaci. Napisane w języku angielskim, zaczynające się od 'Draw', 'Generate' itp."
-    },
-    "main_videos": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Lista 3 szczegółowych promptów wideo reprezentujących całą sesję (wyświetlane pod tytułem). Każdy prompt minimum 50 słów, z ruchem kamery i dynamiką sceny. Napisane w języku angielskim."
-    },
-    "sections": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "section_title": {
-            "type": "string",
-            "description": "Dokładny nagłówek ### z podsumowania, do którego odnoszą się te wizualizacje."
-          },
-          "images": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Lista 2 szczegółowych promptów obrazów dla tej sekcji. Minimum 50 słów każdy, używając opisów wizualnych postaci."
-          },
-          "videos": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Lista 2 szczegółowych promptów wideo dla tej sekcji. Minimum 50 słów każdy, z ruchem kamery i dynamiką."
-          }
-        },
-        "required": [
-          "section_title",
-          "images",
-          "videos"
-        ]
-      },
-      "description": "Lista sekcji wizualnych, po jednej dla każdego nagłówka ### z podsumowania. Każda sekcja zawiera section_title (dokładny nagłówek ###), 2 prompty obrazów i 2 prompty wideo."
     }
   },
   "propertyOrdering": [
@@ -85,19 +39,13 @@
     "events",
     "npcs",
     "locations",
-    "items",
-    "main_images",
-    "main_videos",
-    "sections"
+    "items"
   ],
   "required": [
     "title",
     "events",
     "npcs",
     "locations",
-    "items",
-    "main_images",
-    "main_videos",
-    "sections"
+    "items"
   ]
 }
