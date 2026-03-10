@@ -241,7 +241,13 @@ def transcribe_audio() -> bool:
                 str(audio_file),
                 language="pl",
                 initial_prompt=initial_prompt,
-                fp16=False 
+                fp16=False,
+                condition_on_previous_text=False, # Prevents looping (e.g., "No No No")
+                temperature=(0.0, 0.2),           # Limit random sampling. If it fails at 0.0 and 0.2, fail. Don't go to 1.0
+                logprob_threshold=-1.0,           # Discard segments with low confidence
+                no_speech_threshold=0.6,          # Be stricter about what counts as silence
+                compression_ratio_threshold=2.4,  # Discard highly repetitive text
+                word_timestamps=False             # Slightly more stable without word timestamps
             )
             with open(json_output_path, "w", encoding='utf-8') as f:
                 json.dump(result["segments"], f, indent=2, ensure_ascii=False)
@@ -276,6 +282,48 @@ def combine_transcriptions(session_number: int) -> Path | None:
     all_segments = []
     json_files = sorted(list(TEMP_TRANSCRIPTIONS.glob("*.json")))
 
+    HALLUCINATION_BLOCKLIST = {
+        # --- Specific Whisper/YouTube Artifacts ---
+        "napisy by",
+        "napisy stworzone przez",
+        "napisy pobrane z",
+        "jacek makarewicz",
+        "subtitles by",
+        "subtitle by",
+        "captioned by",
+        "translated by",
+        "amara.org",
+        "org community",
+        "ted.com",
+        "ted talks",
+        
+        # --- YouTube Outros (Safe longer phrases) ---
+        "dzięki za oglądanie",
+        "dziękuję za oglądanie",
+        "thanks for watching",
+        "proszę o subskrypcję",
+        "nie zapomnij zasubskrybować",
+        "kliknij dzwoneczek",
+        "like, share and subscribe",
+        
+        # --- Copyright / Legal ---
+        "wszelkie prawa zastrzeżone",
+        "all rights reserved",
+        "copyright",
+        
+        # --- Glitches / Unicode Artifacts ---
+        "ï¿½",
+        "â”",
+        
+        # --- Audio Descriptions (Optional - keep if you want sound effects) ---
+        "[muzyka]",
+        "(muzyka)",
+        "[cisza]",
+        "(cisza)",
+        "[music]",
+        "(music)"
+    }
+
     for json_file in json_files:
         try:
             # Assumes filename format like "123456-DiscordUser_1234.flac"
@@ -290,10 +338,28 @@ def combine_transcriptions(session_number: int) -> Path | None:
             for segment in segments:
                 # Filter out low-confidence or junk segments
                 text = segment['text'].strip()
-                if segment.get("no_speech_prob", 0.0) > 0.3 or not text:
+                # 1. Statistical Filter: Drop segments with very low confidence
+                # Your JSON showed hallucinations at -4.0 to -6.0.
+                if segment.get("avg_logprob", 0) < -1.0: 
                     continue
-                if text in ["...", "... ...", "Dziękuję.", "Dzień dobry.", "Ale..."]:
+
+                # 2. Probability Filter: Trust the no_speech probability
+                if segment.get("no_speech_prob", 0) > 0.6:
                     continue
+
+                # 3. Content Filter: Remove empty or specific junk
+                if not text or text in ["...", "..", "."]:
+                    continue
+
+                # 4. Hallucination Blocklist Filter
+                if any(phrase.lower() in text.lower() for phrase in HALLUCINATION_BLOCKLIST):
+                    continue
+
+                # 5. Repetition Filter (Prevent "No. No. No.")
+                # If the text is identical to the previous segment from the same speaker, skip it
+                if all_segments and all_segments[-1]["speaker"] == speaker and all_segments[-1]["text"].strip() == text:
+                    continue
+
                 segment["speaker"] = speaker
                 all_segments.append(segment)
 
