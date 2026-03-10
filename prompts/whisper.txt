@@ -40,21 +40,21 @@ Proszę zwrócić szczególną uwagę na poprawną pisownię poniższych nazw w�
     Versi (Tytanka Proroctwa, matka Versira)
 
 **Smoki (Dragons):**
-    Balmytria (srebrna)
-    Sybolkorax (brązowy, dawna postać Volkana)
-    Tysophale (brązowy, dawna postać Vallus)
-    Raspytrion (brązowy, dawna postać Pythora)
-    Arkyrania (brązowy, dawna postać Kyrah)
-    Arystonar (brązowy, dawna postać Narsusa)
-    Hexia (zielona)
-    Hezzebal (mosiężny)
-    Orichalkos (mosiężny)
-    Chaeristis (miedziany)
-    Zarmulax (czerwony)
-    Icarus (srebrny, smok Acastusa)
-    Argyn (srebrna, smoczyca Gaiusa)
-    Nephele (srebrna, klon Balmytrii)
-    Ventis (miedziany)
+    Balmytria
+    Sybolkorax
+    Tysophale
+    Raspytrion
+    Arkyrania
+    Arystonar
+    Hexia
+    Hezzebal
+    Orichalkos
+    Chaeristis
+    Zarmulax
+    Icarus
+    Argyn
+    Nephele
+    Ventis
 
 **Inne Postacie Niezależne (NPCs):**
     Versi (Wyrocznia, Najada)

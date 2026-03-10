@@ -1,27 +1,34 @@
-# Sesja {number}: {title}
+---
+title: "Sesja ${number}: ${title}"
+transcript_txt: "[Transkrypt (txt)](../assets/sessions/${padded_number}/transcript.txt)"
+transcript_json: "[Transkrypt (json)](../assets/sessions/${padded_number}/transcript.json)"
+chat_log: "[Chat log](../assets/sessions/${padded_number}/chat_log.json)"
+---
 
-**Data:** {date}
+# Sesja ${number}: ${title}
+
+**Data:** ${date}
 
 ## Podsumowanie
 
-{summary}
+${summary}
 
 ## Kluczowe wydarzenia / decyzje
 
-{events}
+${events}
 
 ## Pamiętne Cytaty
 
-{quotes}
+${quotes}
 
 ## Postacie Niezależne (NPC)
 
-{npcs}
+${npcs}
 
 ## Lokacje
 
-{locations}
+${locations}
 
 ## Przedmioty
 
-{items}
+${items}
