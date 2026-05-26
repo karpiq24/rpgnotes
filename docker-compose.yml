@@ -1,0 +1,61 @@
+services:
+  rpgnotes:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: rpgnotes:latest
+    # Run as the host user so files written into mounted volumes (output/, temp/,
+    # _processed/) are owned by you, not root. group_add below preserves GPU
+    # access (/dev/kfd, /dev/dri) via the video/render groups.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    ipc: host
+    volumes:
+      - ${DOWNLOADS_DIR:-./Downloads}:/data/downloads
+      - ${OUTPUT_DIR:-./output}:/data/output
+      - ${CONTEXT_DIR:-./context}:/data/context
+      - ./models:/data/models
+      - ./prompts:/app/prompts:ro
+      - ./template.md:/app/template.md:ro
+      - ./discord_speaker_mapping.json:/app/discord_speaker_mapping.json:ro
+      # Uncomment to persist temp state (transcriptions, interim AI files) across runs:
+      - ./temp:/data/temp
+    environment:
+      # Non-root user has no /etc/passwd entry → $HOME defaults to /. Redirect
+      # it into the temp mount so ROCm (MIOpen kernel cache) and any tools
+      # that write to ~/.cache (HuggingFace, etc.) land on writable host disk.
+      HOME: /data/temp
+      DOWNLOADS_DIR: /data/downloads
+      OUTPUT_DIR: /data/output
+      CONTEXT_DIR: /data/context
+      TEMP_DIR: /data/temp
+      WHISPER_CACHE_DIR: /data/models
+      LOG_FILE: /data/temp/session_processor.log
+      DISCORD_MAPPING_FILE: /app/discord_speaker_mapping.json
+      WHISPER_PROMPT_FILE: /app/prompts/whisper.txt
+      SUMMARY_PROMPT_FILE: /app/prompts/summary.txt
+      DETAILS_PROMPT_FILE: /app/prompts/details.txt
+      QUOTES_PROMPT_FILE: /app/prompts/quotes.txt
+      TEMPLATE_FILE: /app/template.md
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_PRO_MODEL: ${GEMINI_PRO_MODEL:-gemini-3.1-pro-preview}
+      GEMINI_FLASH_MODEL: ${GEMINI_FLASH_MODEL:-gemini-3-flash-preview}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-float16}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-pl}
+      # ROCm workaround for HIP page-fault between successive transcribe() calls
+      # on RDNA2/RDNA4 (CT2 issue OpenNMT/CTranslate2#2012). Forces the CUB caching
+      # allocator instead of the default async allocator.
+      CT2_CUDA_ALLOCATOR: ${CT2_CUDA_ALLOCATOR:-cub_caching}
+    stdin_open: true
+    tty: true

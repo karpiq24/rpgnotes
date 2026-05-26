@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpgnotes"
+version = "0.2.0"
+description = "Turn a TTRPG session bundle (audio zip + chat log) into Markdown session notes."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "karpiq" }]
+dependencies = [
+    "faster-whisper>=1.2.1",
+    "google-generativeai==0.8.5",
+    "instructor[google-generativeai]==1.9.2",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-dotenv>=1.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "mypy>=1.10",
+    "ruff>=0.5",
+    "types-tqdm",
+]
+
+[project.scripts]
+rpgnotes = "rpgnotes.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rpgnotes = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# UP047: PEP 695 generic syntax requires Python 3.12+; we keep TypeVar-style for 3.10 compat.
+ignore = ["E501", "UP047"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["rpgnotes"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["faster_whisper.*", "google.generativeai.*", "instructor.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+disable_error_code = ["attr-defined"]

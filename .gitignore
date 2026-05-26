@@ -3,4 +3,15 @@ __pycache__/
 temp/
 context/
 venv/
+.venv/
 models/
+output/
+Downloads/
+session_processor.log
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/

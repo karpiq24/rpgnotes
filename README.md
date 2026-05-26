@@ -1,163 +1,106 @@
-# 🚀 RPG Session Notes Automator 🚀
+# RPG Session Notes Automator
 
-Tired of spending hours after your TTRPG sessions meticulously writing notes, trying to remember every quote, and struggling to organize plot points? **The RPG Session Notes Automator is here to revolutionize your post-game workflow!**
+Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a single Markdown session note with AI-generated summary, structured details, and quotes.
 
-This powerful Python script leverages the magic of AI to transform your raw session recordings into beautifully formatted, detailed, and insightful Markdown notes. Go from a messy folder of audio files to a comprehensive, searchable campaign chronicle with just a few commands. Spend less time on admin and more time planning your next epic adventure!
+- **Transcription**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2 — AMD ROCm and NVIDIA CUDA both work.
+- **Summarization**: Google Gemini (via `google-generativeai` + `instructor` for structured output).
+- **Run**: a single `./run.sh` after dropping files into `DOWNLOADS_DIR`.
 
----
-
-## ✨ Key Features
-
-*   **🎙️ Automated Audio Transcription**: Uses OpenAI's Whisper to accurately transcribe hours of session audio into text, complete with speaker identification.
-*   **🤖 AI-Powered Summarization**: Leverages the Gemini API to generate a narrative summary of the session, capturing the key events in a story-like format.
-*   **📊 Structured Data Extraction**: Intelligently pulls key details from the session and organizes them into structured lists:
-    *   **Major Events**: A bulleted list of the most important plot points.
-    *   **Key NPCs & Locations**: Keep track of who and where the party encountered.
-    *   **Important Items**: A log of significant loot or plot-relevant items.
-    *   **Memorable Quotes**: Never forget that hilarious one-liner or dramatic declaration again.
-    *   **Plot Hooks**: AI-generated suggestions and intriguing questions for the Game Master to use in future sessions.
-*   **🎨 AI Art & Video Prompts**: Automatically generates a list of creative, detailed prompts (in English) for AI image and video generators, perfect for creating visual aids for your campaign.
-*   **📖 Campaign Chronicle**: Automatically compiles all your session notes into a single, massive `_campaign.md` file, creating a continuous, easy-to-read history of your entire adventure.
-*   **👤 Speaker Identification**: Maps Discord user IDs to character names for clear, readable transcripts.
-*   **⚙️ Interactive Menu**: An easy-to-use command-line menu to run the full workflow, generate transcripts only, or just update the campaign chronicle.
-*   **🛠️ Smart & Resumable Workflow**: The script is designed to be efficient. It skips steps that have already been completed, remembers your progress, and manages temporary files.
-
----
-
-## ⚙️ Getting Started
-
-Follow these steps to get the automator up and running on your system.
-
-### Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-1.  **Python 3.12+**: Make sure Python is installed and added to your system's PATH.
-2.  **FFmpeg**: Whisper requires FFmpeg for audio processing. You can download it from the [official FFmpeg website](https://ffmpeg.org/download.html). Ensure the `ffmpeg` executable is in your system's PATH.
-3.  **NVIDIA GPU (Recommended)**: For significantly faster transcriptions, a CUDA-enabled NVIDIA GPU is recommended. The script will fall back to using the CPU if one is not available.
-4.  **Git**: For cloning the repository.
-
-### 1. Clone the Repository
-
-
-### 2. Install Dependencies
-
-Install all the required Python packages using pip:
+## Quick start
 
 ```bash
-pip install -r requirements.txt
+cp .env.example .env
+$EDITOR .env                    # set GEMINI_API_KEY at minimum
+docker compose build
+./run.sh                        # processes the newest session in DOWNLOADS_DIR
 ```
-*(Note: You will need to create a `requirements.txt` file containing all the necessary libraries like `openai-whisper`, `google-generativeai`, `pydantic`, `python-dotenv`, `tqdm`, `instructor`)*
 
-### 3. Obtain API Keys
+That's it. Files end up in `OUTPUT_DIR/01-Sessions/Sesja XX - <title>.md` and assets in `OUTPUT_DIR/assets/sessions/<NNN>/`.
 
-The script requires an API key for Google's Gemini to generate summaries and structured data.
+## Commands
 
-*   **Google Gemini API Key**:
-    *   Go to the [Google AI Studio](https://aistudio.google.com/).
-    *   Sign in and click on "**Get API key**" -> "**Create API key**".
-    *   Copy the generated key.
+| Command | What it does |
+|---|---|
+| `./run.sh` | Full workflow: transcribe + Gemini summary/details/quotes for the newest session. |
+| `./run.sh transcribe` | Transcription only (no Gemini calls). |
+| `./run.sh manual` | Skip Gemini; paste summary/details/quotes JSON manually. |
+| `./run.sh --menu` | Legacy interactive menu (same as old `main.py`). |
+| `./run.sh --clean-temp` | Wipe `TEMP_DIR` first. |
 
-### 4. Configure Your Environment
+## Day-to-day workflow
 
-The script is configured using a `.env` file and several configuration files in the `config` directory.
+1. After the session, drop two files into `DOWNLOADS_DIR`:
+   - `craig-*.flac.zip` — Craig bot audio archive
+   - `session<NN>.json` — your chat log (the script extracts the session number and date from this file)
+2. Run `./run.sh`. The pipeline is resumable: re-running skips steps that already produced output.
 
-1.  **Create the `.env` file**: Rename the `example.env` file to `.env`.
+## AMD GPU support
 
-2.  **Edit the `.env` file**: Open `.env` and fill in the required values.
+The Docker image is based on `rocm/dev-ubuntu-24.04:7.2.2-complete` and ships the official CTranslate2 v4.7.1 ROCm wheel. Tested on an AMD Radeon RX 9070 XT (gfx1201, RDNA4). Other supported targets per the [CT2 v4.7.1 release](https://github.com/OpenNMT/CTranslate2/releases/tag/v4.7.1): gfx803, gfx900, gfx906, gfx908, gfx90a, gfx942, gfx950, gfx1030, gfx1100, gfx1101, gfx1102, gfx1150, gfx1151, gfx1200, gfx1201.
 
-    ```dotenv
-    # --- REQUIRED ---
-    # The API key for the Gemini model
-    GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"
+The container uses `device="cuda"` even on ROCm — CTranslate2 keeps that name. Override via `WHISPER_DEVICE=cpu` (and `WHISPER_COMPUTE_TYPE=int8`) if you need to.
 
-    # --- PATHS (modify if you want a different folder structure) ---
-    # Directory where final markdown notes will be saved
-    OUTPUT_DIR="output"
-    # Directory where your raw audio and chat logs are downloaded
-    DOWNLOADS_DIR="C:/Users/YourUser/Downloads"
-    # Directory for temporary files (transcripts, audio chunks)
-    TEMP_DIR="temp"
+Required device passthrough is already wired into `docker-compose.yml`: `/dev/kfd`, `/dev/dri`, `group_add: video,render`. Ensure your host user is in those groups.
 
-    # --- CONFIGURATION FILES ---
-    DISCORD_MAPPING_FILE="config/discord_mapping.json"
-    WHISPER_PROMPT_FILE="config/whisper_prompt.txt"
-    SUMMARY_PROMPT_FILE="config/summary_prompt.txt"
-    DETAILS_PROMPT_FILE="config/details_prompt.txt"
-    TEMPLATE_FILE="config/template.md"
-    CONTEXT_DIR="context" # Directory for supplemental campaign context
+## NVIDIA GPU support
 
-    # --- MODEL SETTINGS ---
-    GEMINI_PRO_MODEL="gemini-3.1-pro-preview"
-    GEMINI_FLASH_MODEL="gemini-3-flash-preview"
-    ```
+Replace the base image in [docker/Dockerfile](docker/Dockerfile) with a CUDA-equipped one (e.g. `nvidia/cuda:12.4.1-cudnn-runtime-ubuntu24.04`), drop the CT2 ROCm wheel step (use `pip install ctranslate2` for the standard CUDA build), and replace the `devices`/`group_add` block in `docker-compose.yml` with `runtime: nvidia` plus the standard NVIDIA Container Toolkit setup.
 
-### 5. Set Up Configuration Files
+## Running without Docker
 
-Customize the `config` and `context` directories to match your campaign's specifics.
+If you'd rather run on the host:
 
-*   `config/discord_mapping.json`: This is crucial for speaker identification. Map the Discord usernames found in the audio filenames to your players' character names.
-    ```json
-    {
-      "DiscordUser123": "Arevon the Brave",
-      "AnotherPlayer#4567": "Elara Nightshade",
-      "GameMaster": "Game Master"
-    }
-    ```
+```bash
+python -m venv .venv && source .venv/bin/activate
+# AMD: install the CT2 ROCm wheel from https://github.com/OpenNMT/CTranslate2/releases/tag/v4.7.1
+# NVIDIA: pip install ctranslate2
+pip install -e ".[dev]"
+python -m rpgnotes
+```
 
-*   `config/whisper_prompt.txt`: Add a list of unique names, places, and jargon from your campaign. This gives Whisper context and dramatically improves the accuracy of the transcription.
+## Configuration
 
-*   `config/summary_prompt.txt` & `config/details_prompt.txt`: These are the master prompts for the Gemini AI. You can tweak them to change the tone, style, or focus of the generated notes.
+All knobs live in `.env`. See [.env.example](.env.example) for the full list. Key Whisper knobs:
 
-*   `config/template.md`: This is the Markdown template for the final notes. Customize it to change the layout, add or remove sections, and make it your own.
+- `WHISPER_MODEL` — `large-v3` by default; smaller variants (`small`, `medium`, `distil-large-v3`) are faster and lighter.
+- `WHISPER_DEVICE` — `cuda` for GPU (NVIDIA or AMD), `cpu` to force CPU.
+- `WHISPER_COMPUTE_TYPE` — `float16` (GPU), `int8_float16`, or `int8` (CPU).
+- `WHISPER_VAD` — voice-activity-detection filter; `true` cuts silence and helps suppress hallucinations.
 
-*   `context/`: Place any `.txt` or `.md` files in this directory that contain general world lore, campaign background, or character backstories. The AI will use this information for added context when generating summaries.
+## Project layout
 
----
+```
+src/rpgnotes/
+├── cli.py             argparse → pipeline functions
+├── config.py          pydantic-settings, .env-driven
+├── pipeline.py        full / transcription / manual workflows
+├── chatlog.py         find newest session*.json, extract number+date
+├── audio.py           unzip craig-*.flac.zip → per-speaker FLACs
+├── speakers.py        Discord username → character name mapping
+├── hallucination.py   blocklist of common Whisper subtitle hallucinations
+├── helpers.py         small filesystem/JSON utilities
+├── template.py        render template.md → final markdown
+├── transcribe/
+│   ├── base.py        TranscriberProtocol + Segment shape
+│   ├── faster.py      faster-whisper backend
+│   ├── runner.py      skip-existing iteration over a FLAC dir
+│   └── combine.py     merge per-speaker JSONs into a sorted transcript
+└── summarize/
+    ├── models.py      SessionData, QuotesData (pydantic)
+    └── gemini.py      generate_summary / _details / _quotes
+```
 
-## ▶️ Usage
+## Development
 
-Once everything is set up, running the script is simple.
+```bash
+pip install -e ".[dev]"
+pytest
+mypy src/
+ruff check .
+```
 
-1.  **Place Your Files**:
-    *   Move your latest session's chat log (e.g., `session53.json`) into your `DOWNLOADS_DIR`.
-    *   Move your session's audio recording (the `craig-*.flac.zip` file) into your `DOWNLOADS_DIR`.
+## Migrating from the old `main.py`
 
-2.  **Run the Script**:
-    ```bash
-    python main.py
-    ```
-
-3.  **Choose an Option from the Menu**:
-
-    ```
-    ==================================================
-    🚀 D&D Session Processing Workflow 🚀
-    ==================================================
-    Please choose an option:
-      [1] Start Full Workflow (Transcribe -> Generate AI Notes -> Update Chronicle)
-      [2] Run Workflow until Transcribing (Generate transcript file only)
-      [3] Regenerate Campaign Chronicle (from existing session notes)
-      [4] Exit
-    ==================================================
-    Enter your choice [1-4]:
-    ```
-
----
-
-## 🗺️ The Workflow Explained
-
-Here's what happens when you run the **Full Workflow**:
-
-1.  **Initialization**: The script checks for an existing `temp` directory and asks if you want to clear it to ensure a fresh start.
-2.  **Chat Log Processing**: It finds the newest `sessionXX.json` file, extracts the session number and date, and formats it.
-3.  **Audio Preparation**: The `craig-*.flac.zip` archive is located and unzipped into the `temp/audio` directory.
-4.  **Transcription**: Each audio file is processed by Whisper. This is the most time-consuming step. The script shows a real-time progress bar with an ETA.
-5.  **Transcript Combination**: The individual transcripts are combined into a single, chronologically sorted text file, with speaker names added from your mapping file.
-6.  **AI Note Generation**:
-    *   The complete transcript and context files are sent to the Gemini API to generate a detailed summary.
-    *   The summary and transcript are then sent again to extract the structured data (NPCs, locations, quotes, etc.).
-7.  **File Creation**: The AI-generated content is formatted using the `template.md` file and saved as `Sesja XX - Title.md` in your `output` directory.
-8.  **Chronicle Update**: Finally, the script gathers all session notes in the `output` directory and compiles them into the `_campaign.md` file.
-
-You're left with a perfect set of notes and an updated campaign history, all with minimal effort
+- Delete `models/large-v3.pt` — that file is the openai-whisper format. faster-whisper redownloads `Systran/faster-whisper-large-v3` (CT2 format) into the same `models/` directory on first run.
+- `requirements.txt` and `requirements_amd.txt` are gone; everything lives in `pyproject.toml`.
+- The interactive menu is still available via `./run.sh --menu`. The new default is non-interactive.
