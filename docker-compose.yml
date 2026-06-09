@@ -4,16 +4,13 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     image: rpgnotes:latest
-    # Run as the host user so files written into mounted volumes (output/, temp/,
-    # _processed/) are owned by you, not root. group_add below preserves GPU
-    # access (/dev/kfd, /dev/dri) via the video/render groups.
-    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    # No `user:` / `group_add:` here on purpose. The container starts as root
+    # and docker/entrypoint.sh detects the host user and the GPU device GIDs
+    # (/dev/kfd, /dev/dri) at startup, then drops privileges. This keeps the
+    # setup portable across machines and working with bare `docker compose run`.
     devices:
       - /dev/kfd
       - /dev/dri
-    group_add:
-      - video
-      - render
     cap_add:
       - SYS_PTRACE
     security_opt:

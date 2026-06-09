@@ -29,4 +29,8 @@ COPY prompts/ ./prompts/
 COPY template.md discord_speaker_mapping.json ./
 COPY tests/ ./tests/
 
-ENTRYPOINT ["python3", "-m", "rpgnotes"]
+# Self-configuring entrypoint detects the host user + GPU device GIDs at
+# startup and drops privileges (see docker/entrypoint.sh).
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
