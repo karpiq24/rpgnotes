@@ -24,10 +24,9 @@ services:
       - ./prompts:/app/prompts:ro
       - ./template.md:/app/template.md:ro
       - ./discord_speaker_mapping.json:/app/discord_speaker_mapping.json:ro
-      # Session screenshots (Plan E) and the OotD handoff target. When unset in
-      # .env these fall back to harmless repo-local dirs.
+      # Session screenshots (Plan E). Unset in .env falls back to a harmless
+      # repo-local dir.
       - ${SCREENSHOTS_DIR:-./screens_session}:/data/screenshots
-      - ${HANDOFF_DIR:-./handoff}:/data/handoff
       # Curated ASR-misspelling table living in the OotD repo; /dev/null when unset
       # (reads as an empty file inside the container).
       - ${PHONETIC_CORRECTIONS_FILE:-/dev/null}:/app/phonetic_corrections.md:ro
@@ -54,7 +53,6 @@ services:
       VISUAL_CAPTION_PROMPT_FILE: /app/prompts/visual_caption.txt
       PHONETIC_CORRECTIONS_FILE: /app/phonetic_corrections.md
       SCREENSHOTS_DIR: /data/screenshots
-      HANDOFF_DIR: /data/handoff
       TEMPLATE_FILE: /app/template.md
       # Tunables passed through from .env (defaults mirror src/rpgnotes/config.py)
       SUMMARY_CHUNK_LINES: ${SUMMARY_CHUNK_LINES:-800}

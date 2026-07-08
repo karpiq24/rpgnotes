@@ -32,14 +32,6 @@ class Settings(BaseSettings):
         "../OotD/.agent/skills/rpg-summarizer/resources/phonetic_corrections.md"
     )
 
-    # Directory for the handoff bundle (transcripts, chat events, draft0,
-    # validation report, quotes JSON) copied there after a successful full
-    # workflow run.
-    # None (unset) defaults to `OUTPUT_DIR/handoff`; set to "" explicitly to
-    # disable bundling entirely. Point it at an `OotD` checkout's `input/`
-    # directory to skip the manual copy step.
-    handoff_dir: str | None = None
-
     # Session screenshots (Plan E). Unset/empty SCREENSHOTS_DIR disables the
     # feature entirely — the pipeline then runs exactly as before.
     screenshots_dir: str | None = None
@@ -99,19 +91,6 @@ class Settings(BaseSettings):
     @cached_property
     def processed_dir(self) -> Path:
         return self.downloads_dir / "_processed"
-
-    @cached_property
-    def resolved_handoff_dir(self) -> Path | None:
-        """`handoff_dir` resolved to a concrete path, or None if bundling is disabled.
-
-        Unset (`None`) defaults to `OUTPUT_DIR/handoff`; an explicit empty
-        string disables the handoff bundle entirely.
-        """
-        if self.handoff_dir is None:
-            return self.output_dir / "handoff"
-        if not self.handoff_dir.strip():
-            return None
-        return Path(self.handoff_dir)
 
     @cached_property
     def resolved_screenshots_dir(self) -> Path | None:

@@ -17,7 +17,6 @@ from .chatevents import ChatEvent, extract_chat_events, write_chat_events
 from .chatlog import process_chat_log
 from .config import Settings
 from .enrich import build_enriched_transcript
-from .helpers import assemble_handoff_bundle
 from .summarize import (
     QuotesData,
     SessionData,
@@ -334,6 +333,9 @@ def _generate_notes(
         log.error("Failed to extract quotes: %s", e)
         return None
     quotes = verify_quotes(quotes, plain_transcript)
+    (session_assets_dir / "quotes.json").write_text(
+        quotes.model_dump_json(indent=2), encoding="utf-8"
+    )
 
     return summary, quotes
 
@@ -348,17 +350,10 @@ def run_full_workflow(settings: Settings) -> None:
     log.info("\n[Step 5/5] Generating Session Notes with AI…")
     notes = _generate_notes(settings, transcript_file, session_number)
     if notes:
-        # The deliverable is draft0.md plus the handoff bundle — the final
-        # session note is assembled in OotD after the refine pass.
-        log.info("✅ AI-generated draft and quotes are ready for handoff.")
-
-        session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
-        assemble_handoff_bundle(
-            settings.resolved_handoff_dir,
-            session_number,
-            session_assets_dir,
-            settings.temp_dir,
-        )
+        # The deliverable is draft0.md plus quotes.json etc., all written
+        # straight into OUTPUT_DIR/assets/sessions/<NNN>/ — the final session
+        # note is assembled in OotD after the refine pass, reading from there.
+        log.info("✅ AI-generated draft and quotes are ready in %s.", settings.assets_base_dir)
     else:
         log.warning("⚠️ AI note generation was skipped or failed.")
 

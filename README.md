@@ -1,6 +1,6 @@
 # RPG Session Notes Automator
 
-Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a validated, AI-drafted session recap (`draft0.md`) plus a handoff bundle for the OotD wiki repo, which assembles the final session note after the refine pass.
+Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a validated, AI-drafted session recap (`draft0.md`), which OotD assembles into the final session note after the refine pass.
 
 - **Transcription**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2 — AMD ROCm and NVIDIA CUDA both work.
 - **Summarization**: Google Gemini (via `google-generativeai` + `instructor` for structured output).
@@ -15,13 +15,13 @@ docker compose build
 ./run.sh                        # processes the newest session in DOWNLOADS_DIR
 ```
 
-That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/assets/sessions/<NNN>/`, and the handoff bundle in `HANDOFF_DIR/session_<NNN>/`. The final `Sesja XX - <title>.md` note is rendered by OotD after refinement (the manual workflow still renders it locally into `OUTPUT_DIR/01-Sessions/`).
+That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/assets/sessions/<NNN>/` — point `OUTPUT_DIR` at an OotD checkout's `content/` directory and they're immediately visible there, no copy step needed. The final `Sesja XX - <title>.md` note is rendered by OotD after refinement (the manual workflow still renders it locally into `OUTPUT_DIR/01-Sessions/`).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `./run.sh` | Full workflow: transcribe + Gemini summary/quotes + handoff bundle for the newest session. |
+| `./run.sh` | Full workflow: transcribe + Gemini summary/quotes for the newest session. |
 | `./run.sh transcribe` | Transcription only (no Gemini calls). |
 | `./run.sh manual` | Skip Gemini; paste summary/details/quotes JSON manually (renders the final note locally). |
 | `./run.sh --menu` | Legacy interactive menu (same as old `main.py`). |
@@ -72,7 +72,6 @@ Key summarization knobs (chunked map-reduce summarizer):
 - `PHONETIC_CORRECTIONS_FILE` — ASR-error corrections table embedded into the per-session glossary (default `../OotD/.agent/skills/rpg-summarizer/resources/phonetic_corrections.md`; skipped gracefully if missing).
 - `CONTEXT_DIR` — campaign context (entity wiki pages, `Campaign_Context.md`, `Timeline.md`) loaded at runtime; campaign facts are **not** baked into the prompts. **Recommended**: point this at an OotD checkout's `content/` directory (e.g. `CONTEXT_DIR=../OotD/content`) rather than copying context into rpgnotes — its layout (`02-People/`, `03-Locations/`, `04-Items-and-Loot/`, `05-Lore/`, plus `Campaign_Context.md`/`Timeline.md` at the root) is exactly what `build_session_glossary`/`load_context_files` expect, so campaign state is read live from the single source of truth instead of drifting out of sync.
 - `TIMELINE_RECENT_SESSIONS` — only the last N `## Sesja` sections of `Timeline.md` are sent as AI context (default `10`; `0` = whole file). The full timeline grows unbounded and ancient sessions add nothing but tokens.
-- `HANDOFF_DIR` — where the per-session handoff bundle for OotD is copied after a successful full workflow run (see below). Unset defaults to `OUTPUT_DIR/handoff`; set to an empty string to disable bundling.
 
 The pipeline writes per-session artifacts to `OUTPUT_DIR/assets/sessions/<NNN>/`: `transcript.txt`, `transcript.json`, `transcript_enriched.txt` (see below), `draft0.md` (the validated summary draft — the deliverable), `validation_report.md` (unresolved fact-check findings), `recording_start.txt` (Craig's recording start unix timestamp — the shared t=0 for all timeline sources) and `chat_events.{json,txt}` (see below).
 
@@ -80,7 +79,7 @@ The pipeline writes per-session artifacts to `OUTPUT_DIR/assets/sessions/<NNN>/`
 
 The session `session<NN>.json` chat archive is distilled into `chat_events.json` + `chat_events.txt`: module noise (Tidbits/Plutonium banners) is dropped, HTML is flattened, dice rolls keep their formulas and totals via the structured Foundry/Beyond20 markup (`1d20 + 11 = 26`-style), and every message gets an `offset_secs` measured from **Craig's recording start** (parsed from `info.txt` inside the audio zip). That makes the transcript, the `[VISUAL]` screenshot anchors and the chat events all share one clock — a `[VISUAL 02:33:40]` scene and a `[02:33:40] Sydon (rzut): Cataclysmic Bolt…` chat line describe the same moment.
 
-Both files land in the handoff bundle for on-demand lookups during OotD refinement.
+Both files sit in the session assets dir for on-demand lookups during OotD refinement.
 
 ## Enriched transcript (one time-sorted file)
 
@@ -101,12 +100,11 @@ audio (craig-*.flac.zip) + session*.json
   → rpgnotes: per-speaker transcription → combined transcript.txt
   → rpgnotes: chunked Gemini summary + validation pass
               → draft0.md + validation_report.md
-  → [handoff bundle copied to HANDOFF_DIR]
   → OotD: /generate-session-recap-draft (refine mode, seeded with draft0.md)
   → OotD: /finalize-session-recap → wikilinks, images, timeline, final recap
 ```
 
-After a successful full workflow run, rpgnotes assembles a handoff bundle at `HANDOFF_DIR/session_<NNN>/` containing `transcript.txt`, `transcript_enriched.txt`, `chat_log.json`, `chat_events.json`, `chat_events.txt`, `draft0.md`, `validation_report.md`, and `quotes.json` (copied, not moved — the originals stay in `OUTPUT_DIR/assets/sessions/<NNN>/` and `TEMP_DIR`). rpgnotes no longer renders the final session note itself — structured details extraction and the final note assembly happen in OotD after the refine pass (only the manual workflow still renders the template locally). Set `HANDOFF_DIR` to an OotD checkout's `input/` directory (e.g. `HANDOFF_DIR=/path/to/OotD/input`) and the bundle lands exactly where `/generate-session-recap-draft` looks for it — no manual copy step needed. Bundling is best-effort: a missing file or write failure only logs a warning and never fails the pipeline run.
+There is no separate handoff/copy step: point `OUTPUT_DIR` directly at an OotD checkout's `content/` directory (e.g. `OUTPUT_DIR=/path/to/OotD/content`), and every artifact — `transcript.txt`, `transcript_enriched.txt`, `chat_log.json`, `chat_events.json`, `chat_events.txt`, `draft0.md`, `validation_report.md`, `quotes.json` — lands directly in `content/assets/sessions/<NNN>/`, exactly where `/generate-session-recap-draft` looks for it. rpgnotes no longer renders the final session note itself — structured details extraction and the final note assembly happen in OotD after the refine pass (only the manual workflow still renders the template locally).
 
 ## Session screenshots (optional visual context)
 
@@ -152,7 +150,7 @@ src/rpgnotes/
 ├── audio.py           unzip craig-*.flac.zip → per-speaker FLACs
 ├── speakers.py        Discord username → character name mapping
 ├── hallucination.py   blocklist of common Whisper subtitle hallucinations
-├── helpers.py         small filesystem/JSON utilities + handoff bundle
+├── helpers.py         small filesystem/JSON utilities
 ├── chatevents.py      distill Foundry chat log into timeline-anchored events
 ├── visual.py          screenshot dedupe/captioning ([VISUAL] entries)
 ├── enrich.py          merge speech + [VISUAL] + [CZAT] into one transcript
