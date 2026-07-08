@@ -24,6 +24,13 @@ services:
       - ./prompts:/app/prompts:ro
       - ./template.md:/app/template.md:ro
       - ./discord_speaker_mapping.json:/app/discord_speaker_mapping.json:ro
+      # Session screenshots (Plan E) and the OotD handoff target. When unset in
+      # .env these fall back to harmless repo-local dirs.
+      - ${SCREENSHOTS_DIR:-./screens_session}:/data/screenshots
+      - ${HANDOFF_DIR:-./handoff}:/data/handoff
+      # Curated ASR-misspelling table living in the OotD repo; /dev/null when unset
+      # (reads as an empty file inside the container).
+      - ${PHONETIC_CORRECTIONS_FILE:-/dev/null}:/app/phonetic_corrections.md:ro
       # Uncomment to persist temp state (transcriptions, interim AI files) across runs:
       - ./temp:/data/temp
     environment:
@@ -40,9 +47,25 @@ services:
       DISCORD_MAPPING_FILE: /app/discord_speaker_mapping.json
       WHISPER_PROMPT_FILE: /app/prompts/whisper.txt
       SUMMARY_PROMPT_FILE: /app/prompts/summary.txt
-      DETAILS_PROMPT_FILE: /app/prompts/details.txt
       QUOTES_PROMPT_FILE: /app/prompts/quotes.txt
+      STYLE_RULES_FILE: /app/prompts/style_rules.txt
+      ANTI_HALLUCINATION_FILE: /app/prompts/anti_hallucination.txt
+      VALIDATION_PROMPT_FILE: /app/prompts/validation.txt
+      VISUAL_CAPTION_PROMPT_FILE: /app/prompts/visual_caption.txt
+      PHONETIC_CORRECTIONS_FILE: /app/phonetic_corrections.md
+      SCREENSHOTS_DIR: /data/screenshots
+      HANDOFF_DIR: /data/handoff
       TEMPLATE_FILE: /app/template.md
+      # Tunables passed through from .env (defaults mirror src/rpgnotes/config.py)
+      SUMMARY_CHUNK_LINES: ${SUMMARY_CHUNK_LINES:-800}
+      SUMMARY_TEMPERATURE: ${SUMMARY_TEMPERATURE:-0.3}
+      SUMMARY_POLISH_PASS: ${SUMMARY_POLISH_PASS:-true}
+      SUMMARY_POLISH_TEMPERATURE: ${SUMMARY_POLISH_TEMPERATURE:-0.7}
+      TIMELINE_RECENT_SESSIONS: ${TIMELINE_RECENT_SESSIONS:-10}
+      VISUAL_DEDUPE: ${VISUAL_DEDUPE:-true}
+      VISUAL_UPLOAD_MAX_DIM: ${VISUAL_UPLOAD_MAX_DIM:-1536}
+      VISUAL_UPLOAD_JPEG_QUALITY: ${VISUAL_UPLOAD_JPEG_QUALITY:-80}
+      VISUAL_CROP: ${VISUAL_CROP:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_PRO_MODEL: ${GEMINI_PRO_MODEL:-gemini-3.1-pro-preview}
       GEMINI_FLASH_MODEL: ${GEMINI_FLASH_MODEL:-gemini-3-flash-preview}

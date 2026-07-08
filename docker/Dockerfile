@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv ffmpeg curl unzip ca-certificates \
+        python3 python3-pip python3-venv ffmpeg curl unzip ca-certificates imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

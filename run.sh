@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Thin wrapper: `./run.sh [args]` → docker compose run --rm rpgnotes [args]
+# Thin wrapper: `./run.sh [args]` → rebuild image, then
+# docker compose run --rm rpgnotes [args]
 # Examples:
 #   ./run.sh                  # full workflow on newest session in DOWNLOADS_DIR
 #   ./run.sh transcribe       # transcription only
@@ -13,4 +14,5 @@
 set -euo pipefail
 export HOST_UID="$(id -u)"
 export HOST_GID="$(id -g)"
+docker compose build rpgnotes
 exec docker compose run --rm rpgnotes "$@"
