@@ -21,10 +21,50 @@ class Settings(BaseSettings):
     discord_mapping_file: Path
     whisper_prompt_file: Path
     summary_prompt_file: Path
-    details_prompt_file: Path
     quotes_prompt_file: Path
     template_file: Path
     context_dir: Path
+
+    style_rules_file: Path = Path("./prompts/style_rules.txt")
+    anti_hallucination_file: Path = Path("./prompts/anti_hallucination.txt")
+    validation_prompt_file: Path = Path("./prompts/validation.txt")
+    phonetic_corrections_file: Path = Path(
+        "../OotD/.agent/skills/rpg-summarizer/resources/phonetic_corrections.md"
+    )
+
+    # Directory for the handoff bundle (transcripts, chat events, draft0,
+    # validation report, quotes JSON) copied there after a successful full
+    # workflow run.
+    # None (unset) defaults to `OUTPUT_DIR/handoff`; set to "" explicitly to
+    # disable bundling entirely. Point it at an `OotD` checkout's `input/`
+    # directory to skip the manual copy step.
+    handoff_dir: str | None = None
+
+    # Session screenshots (Plan E). Unset/empty SCREENSHOTS_DIR disables the
+    # feature entirely — the pipeline then runs exactly as before.
+    screenshots_dir: str | None = None
+    visual_caption_model: str | None = None  # defaults to `gemini_flash_model`
+    visual_dedupe: bool = True
+    visual_caption_prompt_file: Path = Path("./prompts/visual_caption.txt")
+    # Frames are downscaled to this long-edge size and re-encoded as JPEG for
+    # the caption upload only (originals on disk stay full-res PNG). 0 = send
+    # originals uncompressed.
+    visual_upload_max_dim: int = 1536
+    visual_upload_jpeg_quality: int = 80
+    # ImageMagick crop geometry ("WxH+X+Y") applied to frames before the AI
+    # upload AND before the dedupe signature — cuts system/browser chrome
+    # (dock, tabs, clock) out of what the caption model sees. Empty = off.
+    # Disk originals are never modified.
+    visual_crop: str = ""
+
+    # How many trailing `## Sesja N` sections of Timeline.md to include in the
+    # campaign context sent to the summarizer (0 = whole file).
+    timeline_recent_sessions: int = 10
+
+    summary_chunk_lines: int = 800
+    summary_temperature: float = 0.3
+    summary_polish_pass: bool = True
+    summary_polish_temperature: float = 0.7
 
     whisper_model: str = "large-v3"
     whisper_device: str = "cuda"
@@ -59,6 +99,30 @@ class Settings(BaseSettings):
     @cached_property
     def processed_dir(self) -> Path:
         return self.downloads_dir / "_processed"
+
+    @cached_property
+    def resolved_handoff_dir(self) -> Path | None:
+        """`handoff_dir` resolved to a concrete path, or None if bundling is disabled.
+
+        Unset (`None`) defaults to `OUTPUT_DIR/handoff`; an explicit empty
+        string disables the handoff bundle entirely.
+        """
+        if self.handoff_dir is None:
+            return self.output_dir / "handoff"
+        if not self.handoff_dir.strip():
+            return None
+        return Path(self.handoff_dir)
+
+    @cached_property
+    def resolved_screenshots_dir(self) -> Path | None:
+        """`screenshots_dir` as a concrete path, or None when the feature is off."""
+        if self.screenshots_dir is None or not self.screenshots_dir.strip():
+            return None
+        return Path(self.screenshots_dir)
+
+    @cached_property
+    def resolved_visual_caption_model(self) -> str:
+        return (self.visual_caption_model or "").strip() or self.gemini_flash_model
 
     def ensure_directories(self) -> None:
         for directory in (

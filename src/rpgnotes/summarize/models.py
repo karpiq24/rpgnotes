@@ -1,6 +1,30 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+Severity = Literal["error", "suspicious", "question_for_user"]
+
+
+class Finding(BaseModel):
+    quote: str = Field(
+        description="Dosłowny fragment tekstu z draftu, którego dotyczy problem."
+    )
+    issue: str = Field(description="Co jest nie tak lub czego nie da się zweryfikować.")
+    severity: Severity = Field(
+        description="Powaga: 'error' (prosta podmiana), 'suspicious' (do oceny), "
+        "'question_for_user' (do weryfikacji przez człowieka)."
+    )
+    suggested_fix: str = Field(
+        default="",
+        description="Tekst zastępujący `quote` (dla 'error'), 'remove' aby usunąć, "
+        "lub pusty string dla pozostałych.",
+    )
+
+
+class ValidationReport(BaseModel):
+    findings: list[Finding] = Field(default_factory=list)
 
 
 class SessionData(BaseModel):

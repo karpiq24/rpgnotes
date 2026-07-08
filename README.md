@@ -1,6 +1,6 @@
 # RPG Session Notes Automator
 
-Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a single Markdown session note with AI-generated summary, structured details, and quotes.
+Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a validated, AI-drafted session recap (`draft0.md`) plus a handoff bundle for the OotD wiki repo, which assembles the final session note after the refine pass.
 
 - **Transcription**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2 — AMD ROCm and NVIDIA CUDA both work.
 - **Summarization**: Google Gemini (via `google-generativeai` + `instructor` for structured output).
@@ -15,15 +15,15 @@ docker compose build
 ./run.sh                        # processes the newest session in DOWNLOADS_DIR
 ```
 
-That's it. Files end up in `OUTPUT_DIR/01-Sessions/Sesja XX - <title>.md` and assets in `OUTPUT_DIR/assets/sessions/<NNN>/`.
+That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/assets/sessions/<NNN>/`, and the handoff bundle in `HANDOFF_DIR/session_<NNN>/`. The final `Sesja XX - <title>.md` note is rendered by OotD after refinement (the manual workflow still renders it locally into `OUTPUT_DIR/01-Sessions/`).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `./run.sh` | Full workflow: transcribe + Gemini summary/details/quotes for the newest session. |
+| `./run.sh` | Full workflow: transcribe + Gemini summary/quotes + handoff bundle for the newest session. |
 | `./run.sh transcribe` | Transcription only (no Gemini calls). |
-| `./run.sh manual` | Skip Gemini; paste summary/details/quotes JSON manually. |
+| `./run.sh manual` | Skip Gemini; paste summary/details/quotes JSON manually (renders the final note locally). |
 | `./run.sh --menu` | Legacy interactive menu (same as old `main.py`). |
 | `./run.sh --clean-temp` | Wipe `TEMP_DIR` first. |
 
@@ -60,7 +60,81 @@ python -m rpgnotes
 
 ## Configuration
 
-All knobs live in `.env`. See [.env.example](.env.example) for the full list. Key Whisper knobs:
+All knobs live in `.env`. See [.env.example](.env.example) for the full list.
+
+Key summarization knobs (chunked map-reduce summarizer):
+
+- `SUMMARY_CHUNK_LINES` — transcript chunk size in lines (default `800`); chunks break only at speaker-turn boundaries.
+- `SUMMARY_TEMPERATURE` — temperature for the factual per-chunk summaries (default `0.3`).
+- `SUMMARY_POLISH_PASS` — enable the final prose-polish pass that may improve style but changes no facts, names, or event order (default `true`).
+- `SUMMARY_POLISH_TEMPERATURE` — temperature for the polish pass (default `0.7`).
+- `STYLE_RULES_FILE` / `ANTI_HALLUCINATION_FILE` / `VALIDATION_PROMPT_FILE` — the composable prompt parts (`prompts/style_rules.txt`, `prompts/anti_hallucination.txt`, `prompts/validation.txt`).
+- `PHONETIC_CORRECTIONS_FILE` — ASR-error corrections table embedded into the per-session glossary (default `../OotD/.agent/skills/rpg-summarizer/resources/phonetic_corrections.md`; skipped gracefully if missing).
+- `CONTEXT_DIR` — campaign context (entity wiki pages, `Campaign_Context.md`, `Timeline.md`) loaded at runtime; campaign facts are **not** baked into the prompts. **Recommended**: point this at an OotD checkout's `content/` directory (e.g. `CONTEXT_DIR=../OotD/content`) rather than copying context into rpgnotes — its layout (`02-People/`, `03-Locations/`, `04-Items-and-Loot/`, `05-Lore/`, plus `Campaign_Context.md`/`Timeline.md` at the root) is exactly what `build_session_glossary`/`load_context_files` expect, so campaign state is read live from the single source of truth instead of drifting out of sync.
+- `TIMELINE_RECENT_SESSIONS` — only the last N `## Sesja` sections of `Timeline.md` are sent as AI context (default `10`; `0` = whole file). The full timeline grows unbounded and ancient sessions add nothing but tokens.
+- `HANDOFF_DIR` — where the per-session handoff bundle for OotD is copied after a successful full workflow run (see below). Unset defaults to `OUTPUT_DIR/handoff`; set to an empty string to disable bundling.
+
+The pipeline writes per-session artifacts to `OUTPUT_DIR/assets/sessions/<NNN>/`: `transcript.txt`, `transcript.json`, `transcript_enriched.txt` (see below), `draft0.md` (the validated summary draft — the deliverable), `validation_report.md` (unresolved fact-check findings), `recording_start.txt` (Craig's recording start unix timestamp — the shared t=0 for all timeline sources) and `chat_events.{json,txt}` (see below).
+
+## Foundry chat events (timeline-anchored)
+
+The session `session<NN>.json` chat archive is distilled into `chat_events.json` + `chat_events.txt`: module noise (Tidbits/Plutonium banners) is dropped, HTML is flattened, dice rolls keep their formulas and totals via the structured Foundry/Beyond20 markup (`1d20 + 11 = 26`-style), and every message gets an `offset_secs` measured from **Craig's recording start** (parsed from `info.txt` inside the audio zip). That makes the transcript, the `[VISUAL]` screenshot anchors and the chat events all share one clock — a `[VISUAL 02:33:40]` scene and a `[02:33:40] Sydon (rzut): Cataclysmic Bolt…` chat line describe the same moment.
+
+Both files land in the handoff bundle for on-demand lookups during OotD refinement.
+
+## Enriched transcript (one time-sorted file)
+
+All three timeline sources are merged into a single `transcript_enriched.txt` in the session assets dir, sorted by offset on the shared recording clock:
+
+- speech segments (from `transcript.json`, same speaker-header format as `transcript.txt`),
+- visual caption lines: `[VISUAL HH:MM:SS] caption` (`[VISUAL HH:MM:SS KEY] …` for key frames),
+- chat event lines: `[CZAT HH:MM:SS] Speaker (rzut): text` for rolls, `[CZAT HH:MM:SS] Speaker: text` for plain chat. Events sent before the recording started appear at the very top as `[CZAT PRZED NAGRANIEM] …`.
+
+At equal offsets visual lines come before chat lines. The file is built whenever at least one annotation source exists (screenshots-only, chat-only, or both — it degrades gracefully); with neither, the plain transcript is used and no file is written. The enriched transcript is what the summary generation **and** the validation pass consume — chat events reach the Gemini calls inline, with chunk-window locality keeping context bounded. Quote extraction/verification deliberately stays on the plain `transcript.txt` so quote candidates are always actually spoken lines.
+
+## Handoff to the wiki (OotD)
+
+rpgnotes is the "transcription + draft-0 factory": it runs unattended (audio → transcript → chunked, validated Gemini summary), and the interactive prose refinement, fact-checking, and wiki work happens in the sibling `OotD` repo via Claude Code sessions. The end-to-end flow:
+
+```
+audio (craig-*.flac.zip) + session*.json
+  → rpgnotes: per-speaker transcription → combined transcript.txt
+  → rpgnotes: chunked Gemini summary + validation pass
+              → draft0.md + validation_report.md
+  → [handoff bundle copied to HANDOFF_DIR]
+  → OotD: /generate-session-recap-draft (refine mode, seeded with draft0.md)
+  → OotD: /finalize-session-recap → wikilinks, images, timeline, final recap
+```
+
+After a successful full workflow run, rpgnotes assembles a handoff bundle at `HANDOFF_DIR/session_<NNN>/` containing `transcript.txt`, `transcript_enriched.txt`, `chat_log.json`, `chat_events.json`, `chat_events.txt`, `draft0.md`, `validation_report.md`, and `quotes.json` (copied, not moved — the originals stay in `OUTPUT_DIR/assets/sessions/<NNN>/` and `TEMP_DIR`). rpgnotes no longer renders the final session note itself — structured details extraction and the final note assembly happen in OotD after the refine pass (only the manual workflow still renders the template locally). Set `HANDOFF_DIR` to an OotD checkout's `input/` directory (e.g. `HANDOFF_DIR=/path/to/OotD/input`) and the bundle lands exactly where `/generate-session-recap-draft` looks for it — no manual copy step needed. Bundling is best-effort: a missing file or write failure only logs a warning and never fails the pipeline run.
+
+## Session screenshots (optional visual context)
+
+Capture the VTT screen during the session and the pipeline will interleave Gemini-captioned `[VISUAL HH:MM:SS] …` anchor lines into the transcript — hard evidence of scene changes, token positions, and handouts for the summarizer and fact-checker.
+
+**Before the session starts** (alongside starting Craig), run on the host:
+
+```bash
+python3 scripts/capture_session.py
+```
+
+Pick the monitor showing the VTT (never the one with Discord — only the selected region is ever written to disk), leave it running, stop with `Ctrl+C` after the session. Frames land in `DOWNLOADS_DIR/screens_session/` as `shot_<unix_ts>.png` plus a `session_start.txt` timestamp; frames nearly identical to the previous kept one are dropped automatically.
+
+Flags: `--interval N` (seconds between capture attempts, default 600 — D&D scenes change slowly and each kept frame costs a Gemini caption call, so 10 minutes is plenty; near-identical frames are still dropped immediately), `--monitor DP-1` / `--region WxH+X+Y` (skip the interactive picker), `--output-dir PATH`, `--dedupe-threshold F` (mean 0-255 gray diff, default 4.0), `--once` (single test frame).
+
+Backends are auto-detected: `grim`+`slurp` (wlroots Wayland), the XDG desktop portal (GNOME Wayland; needs ImageMagick + `python3-dbus`/`python3-gi`), or `maim`/`scrot`/ImageMagick (X11). On GNOME Wayland, run this once so the portal stops asking for permission:
+
+```bash
+python3 scripts/capture_session.py --grant-portal-permission
+```
+
+(The GNOME portal briefly writes a full-desktop frame to your Pictures dir; the script crops it to your region and deletes the original immediately. GNOME may flash the screen on each capture — that's normal.)
+
+**Ingestion** is enabled by setting `SCREENSHOTS_DIR` in `.env` (e.g. `./Downloads/screens_session`); leave it empty and the pipeline behaves exactly as before. Each kept frame gets one Gemini Flash multimodal caption (Polish, glossary-anchored; model via `VISUAL_CAPTION_MODEL`, defaults to `GEMINI_FLASH_MODEL`; per-frame captions cached in `TEMP_DIR`, resumable). Outputs land in `OUTPUT_DIR/assets/sessions/<NNN>/`: `visual_log.json` (`[{offset_secs, caption, path, is_key}]` — files named `shot_<ts>_key.png` are flagged as key moments); the captions are merged into `transcript_enriched.txt` (see the enriched transcript section), which is fed to the summarizer. `VISUAL_DEDUPE=false` disables the ingestion-side re-dedupe.
+
+Offsets are anchored to Craig's recording start (`recording_start.txt`, parsed from the audio zip's `info.txt`) when available — this survives starting the capture script earlier or later than the recording. `session_start.txt` is only the fallback anchor. `VISUAL_CROP=WxH+X+Y` cuts system/browser chrome (dock, tabs, clock) out of both the AI upload and the dedupe signature; disk originals are never modified.
+
+Key Whisper knobs:
 
 - `WHISPER_MODEL` — `large-v3` by default; smaller variants (`small`, `medium`, `distil-large-v3`) are faster and lighter.
 - `WHISPER_DEVICE` — `cuda` for GPU (NVIDIA or AMD), `cpu` to force CPU.
@@ -78,16 +152,22 @@ src/rpgnotes/
 ├── audio.py           unzip craig-*.flac.zip → per-speaker FLACs
 ├── speakers.py        Discord username → character name mapping
 ├── hallucination.py   blocklist of common Whisper subtitle hallucinations
-├── helpers.py         small filesystem/JSON utilities
-├── template.py        render template.md → final markdown
+├── helpers.py         small filesystem/JSON utilities + handoff bundle
+├── chatevents.py      distill Foundry chat log into timeline-anchored events
+├── visual.py          screenshot dedupe/captioning ([VISUAL] entries)
+├── enrich.py          merge speech + [VISUAL] + [CZAT] into one transcript
+├── template.py        render template.md → final markdown (manual workflow)
 ├── transcribe/
 │   ├── base.py        TranscriberProtocol + Segment shape
 │   ├── faster.py      faster-whisper backend
 │   ├── runner.py      skip-existing iteration over a FLAC dir
 │   └── combine.py     merge per-speaker JSONs into a sorted transcript
 └── summarize/
-    ├── models.py      SessionData, QuotesData (pydantic)
-    └── gemini.py      generate_summary / _details / _quotes
+    ├── models.py      SessionData, QuotesData, ValidationReport (pydantic)
+    ├── chunker.py     split transcript into ~800-line chunks at speaker turns
+    ├── glossary.py    session glossary from context entities + phonetic fixes
+    └── gemini.py      chunked map-reduce summary, validation pass,
+                       quotes extraction, quote verification
 ```
 
 ## Development

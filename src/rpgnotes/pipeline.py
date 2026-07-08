@@ -12,19 +12,25 @@ from typing import TypeVar
 import google.generativeai as genai
 from pydantic import BaseModel, ValidationError
 
-from .audio import unzip_audio
+from .audio import extract_recording_start, unzip_audio
+from .chatevents import ChatEvent, extract_chat_events, write_chat_events
 from .chatlog import process_chat_log
 from .config import Settings
+from .enrich import build_enriched_transcript
+from .helpers import assemble_handoff_bundle
 from .summarize import (
     QuotesData,
     SessionData,
-    generate_details,
+    build_session_glossary,
     generate_quotes,
-    generate_summary,
+    generate_summary_chunked,
+    validate_summary,
+    verify_quotes,
 )
 from .template import save_summary_file
 from .transcribe import combine_transcriptions, transcribe_audio_dir
 from .transcribe.faster import FasterWhisperTranscriber
+from .visual import VisualEntry, caption_screenshots
 
 log = logging.getLogger("rpgnotes")
 
@@ -64,8 +70,11 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     log.info("✅ Session %d on %s", session_number, session_date)
 
     log.info("\n[Step 2/4] Preparing Audio Files…")
+    session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
+    _save_recording_start(settings, session_assets_dir)
     unzip_audio(settings.downloads_dir, settings.audio_output_dir, settings.processed_dir)
     log.info("✅ Audio files are ready.")
+    _save_chat_events(session_assets_dir)
 
     log.info("\n[Step 3/4] Transcribing Audio…")
     ok = transcribe_audio_dir(
@@ -95,54 +104,228 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     return transcript_file, session_number, session_date
 
 
+def _save_recording_start(settings: Settings, session_assets_dir: Path) -> None:
+    """Persist the Craig recording start (unix ts) as `recording_start.txt`.
+
+    This is the shared t=0 anchor for transcript offsets, `[VISUAL]` lines and
+    chat events. Best-effort: any failure only logs a warning.
+    """
+    anchor_file = session_assets_dir / "recording_start.txt"
+    if anchor_file.exists():
+        return
+    started = extract_recording_start(settings.downloads_dir, settings.processed_dir)
+    if started is None:
+        return
+    session_assets_dir.mkdir(parents=True, exist_ok=True)
+    anchor_file.write_text(f"{started}\n", encoding="utf-8")
+    log.info("Recording start %d saved to %s", started, anchor_file)
+
+
+def _load_recording_start(session_assets_dir: Path) -> int | None:
+    anchor_file = session_assets_dir / "recording_start.txt"
+    if not anchor_file.exists():
+        return None
+    try:
+        return int(anchor_file.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError) as e:
+        log.warning("Could not read %s: %s", anchor_file, e)
+        return None
+
+
+def _save_chat_events(session_assets_dir: Path) -> None:
+    """Distill `chat_log.json` into timeline-anchored `chat_events.{json,txt}`.
+
+    Best-effort and resumable: skipped when the output already exists, and any
+    failure only logs a warning.
+    """
+    chat_log_file = session_assets_dir / "chat_log.json"
+    events_json = session_assets_dir / "chat_events.json"
+    if events_json.exists():
+        log.info("Chat events already exist at %s. Skipping.", events_json)
+        return
+    if not chat_log_file.exists():
+        log.warning("No chat_log.json in %s — skipping chat events.", session_assets_dir)
+        return
+    try:
+        events = extract_chat_events(chat_log_file, _load_recording_start(session_assets_dir))
+        write_chat_events(events, events_json, session_assets_dir / "chat_events.txt")
+    except Exception as e:
+        log.warning("Chat event extraction failed: %s. Continuing without chat events.", e)
+
+
+def _load_chat_events(session_assets_dir: Path) -> list[ChatEvent]:
+    """Parse `chat_events.json` back into `ChatEvent`s. Best-effort: [] on any failure."""
+    events_file = session_assets_dir / "chat_events.json"
+    if not events_file.exists():
+        return []
+    try:
+        raw = json.loads(events_file.read_text(encoding="utf-8"))
+        return [ChatEvent.model_validate(item) for item in raw]
+    except Exception as e:
+        log.warning("Could not load chat events from %s: %s", events_file, e)
+        return []
+
+
+def _caption_session_screenshots(
+    settings: Settings,
+    session_assets_dir: Path,
+    glossary: str,
+    session_number: int,
+) -> list[VisualEntry]:
+    """Caption screenshots when SCREENSHOTS_DIR is configured. Best-effort: [] otherwise."""
+    screenshots_dir = settings.resolved_screenshots_dir
+    if screenshots_dir is None:
+        return []
+    if not screenshots_dir.is_dir():
+        log.warning("SCREENSHOTS_DIR %s does not exist. Skipping visual context.", screenshots_dir)
+        return []
+    try:
+        return caption_screenshots(
+            screenshots_dir=screenshots_dir,
+            caption_prompt=settings.visual_caption_prompt_file.read_text(encoding="utf-8"),
+            glossary=glossary,
+            model_name=settings.resolved_visual_caption_model,
+            temp_dir=settings.temp_dir,
+            session_number=session_number,
+            visual_log_file=session_assets_dir / "visual_log.json",
+            dedupe=settings.visual_dedupe,
+            api_sleep_secs=settings.gemini_api_sleep_secs,
+            upload_max_dim=settings.visual_upload_max_dim,
+            upload_jpeg_quality=settings.visual_upload_jpeg_quality,
+            crop=settings.visual_crop,
+            recording_start=_load_recording_start(session_assets_dir),
+        )
+    except Exception as e:
+        log.warning("Visual context failed: %s. Continuing without screenshots.", e)
+        return []
+
+
+def _apply_enrichment(
+    settings: Settings,
+    session_assets_dir: Path,
+    transcript_content: str,
+    glossary: str,
+    session_number: int,
+) -> str:
+    """Merge `[VISUAL]` captions and `[CZAT]` chat events into one enriched transcript.
+
+    Returns the time-sorted enriched transcript (cached at
+    `transcript_enriched.txt`, so the step is resumable) when at least one
+    annotation source exists; with neither screenshots nor chat events the
+    plain transcript is returned unchanged and no file is written.
+    Best-effort: any failure logs a warning and never fails the pipeline.
+    """
+    enriched_file = session_assets_dir / "transcript_enriched.txt"
+    if enriched_file.exists():
+        log.info("Existing enriched transcript found at %s. Loading it…", enriched_file)
+        return enriched_file.read_text(encoding="utf-8")
+
+    entries = _caption_session_screenshots(settings, session_assets_dir, glossary, session_number)
+    chat_events = _load_chat_events(session_assets_dir)
+    if not entries and not chat_events:
+        return transcript_content
+
+    try:
+        segments = json.loads(
+            (session_assets_dir / "transcript.json").read_text(encoding="utf-8")
+        )
+        enriched = build_enriched_transcript(segments, entries, chat_events)
+    except Exception as e:
+        log.warning("Transcript enrichment failed: %s. Continuing with the plain transcript.", e)
+        return transcript_content
+
+    enriched_file.write_text(enriched, encoding="utf-8")
+    log.info(
+        "Enriched transcript with %d [VISUAL] and %d [CZAT] anchor(s) saved to %s",
+        len(entries),
+        len(chat_events),
+        enriched_file,
+    )
+    return enriched
+
+
 def _generate_notes(
     settings: Settings,
     transcript_file: Path,
     session_number: int,
-) -> tuple[str, SessionData, QuotesData] | None:
+) -> tuple[str, QuotesData] | None:
     if not settings.gemini_api_key:
         log.warning("GEMINI_API_KEY not set. Skipping note generation.")
         return None
 
     genai.configure(api_key=settings.gemini_api_key)
-    transcript_content = transcript_file.read_text(encoding="utf-8")
+    plain_transcript = transcript_file.read_text(encoding="utf-8")
 
     summary_cache = settings.temp_dir / f"summary_session_{session_number}.txt"
-    details_cache = settings.temp_dir / f"details_session_{session_number}.json"
+    validated_cache = settings.temp_dir / f"validated_summary_session_{session_number}.txt"
     quotes_cache = settings.temp_dir / f"quotes_session_{session_number}.json"
 
+    session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
+    draft_file = session_assets_dir / "draft0.md"
+    report_file = session_assets_dir / "validation_report.md"
+
+    glossary = build_session_glossary(
+        context_dir=settings.context_dir,
+        phonetic_corrections_file=settings.phonetic_corrections_file,
+        transcript_content=plain_transcript,
+    )
+
+    # Summary generation and validation see the enriched transcript ([VISUAL]
+    # + [CZAT] anchors); quote extraction/verification stays on the plain one
+    # so quote candidates are always actually spoken lines.
+    transcript_content = _apply_enrichment(
+        settings, session_assets_dir, plain_transcript, glossary, session_number
+    )
+
     try:
-        summary = generate_summary(
+        summary, _rolling_summaries = generate_summary_chunked(
             transcript_content=transcript_content,
-            summary_prompt=settings.summary_prompt_file.read_text(encoding="utf-8"),
+            style_rules=settings.style_rules_file.read_text(encoding="utf-8"),
+            anti_hallucination=settings.anti_hallucination_file.read_text(encoding="utf-8"),
+            glossary=glossary,
             model_name=settings.gemini_pro_model,
             context_dir=settings.context_dir,
+            temp_dir=settings.temp_dir,
+            session_number=session_number,
             cache_file=summary_cache,
+            chunk_lines=settings.summary_chunk_lines,
+            temperature=settings.summary_temperature,
+            polish_pass=settings.summary_polish_pass,
+            polish_temperature=settings.summary_polish_temperature,
+            timeline_recent_sessions=settings.timeline_recent_sessions,
         )
     except Exception as e:
         log.error("Failed to generate session summary after retries: %s", e)
         return None
 
-    if not details_cache.exists():
+    if validated_cache.exists():
+        log.info("Existing validated summary found at %s. Loading it…", validated_cache)
+        summary = validated_cache.read_text(encoding="utf-8")
+    else:
         log.info("Waiting %.0fs for API rate limit…", settings.gemini_api_sleep_secs)
         time.sleep(settings.gemini_api_sleep_secs)
-    try:
-        details = generate_details(
-            session_summary=summary,
-            details_prompt=settings.details_prompt_file.read_text(encoding="utf-8"),
-            model_name=settings.gemini_flash_model,
-            cache_file=details_cache,
-        )
-    except Exception as e:
-        log.error("Failed to extract structured details: %s", e)
-        return None
+        try:
+            summary, _report = validate_summary(
+                summary=summary,
+                transcript_content=transcript_content,
+                validation_prompt=settings.validation_prompt_file.read_text(encoding="utf-8"),
+                model_name=settings.gemini_pro_model,
+                report_file=report_file,
+            )
+            validated_cache.write_text(summary, encoding="utf-8")
+        except Exception as e:
+            log.error("Summary validation failed: %s. Continuing with the unvalidated draft.", e)
+
+    session_assets_dir.mkdir(parents=True, exist_ok=True)
+    draft_file.write_text(summary, encoding="utf-8")
+    log.info("Validated summary draft saved to %s", draft_file)
 
     if not quotes_cache.exists():
         log.info("Waiting %.0fs for API rate limit…", settings.gemini_api_sleep_secs)
         time.sleep(settings.gemini_api_sleep_secs)
     try:
         quotes = generate_quotes(
-            transcript_content=transcript_content,
+            transcript_content=plain_transcript,
             quotes_prompt=settings.quotes_prompt_file.read_text(encoding="utf-8"),
             model_name=settings.gemini_flash_model,
             cache_file=quotes_cache,
@@ -150,8 +333,9 @@ def _generate_notes(
     except Exception as e:
         log.error("Failed to extract quotes: %s", e)
         return None
+    quotes = verify_quotes(quotes, plain_transcript)
 
-    return summary, details, quotes
+    return summary, quotes
 
 
 def run_full_workflow(settings: Settings) -> None:
@@ -159,22 +343,22 @@ def run_full_workflow(settings: Settings) -> None:
     result = run_transcription_workflow(settings)
     if not result:
         return
-    transcript_file, session_number, session_date = result
+    transcript_file, session_number, _session_date = result
 
     log.info("\n[Step 5/5] Generating Session Notes with AI…")
     notes = _generate_notes(settings, transcript_file, session_number)
     if notes:
-        summary, details, quotes = notes
-        save_summary_file(
-            settings.template_file,
-            settings.sessions_recap_dir,
-            summary,
-            details,
-            quotes,
+        # The deliverable is draft0.md plus the handoff bundle — the final
+        # session note is assembled in OotD after the refine pass.
+        log.info("✅ AI-generated draft and quotes are ready for handoff.")
+
+        session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
+        assemble_handoff_bundle(
+            settings.resolved_handoff_dir,
             session_number,
-            session_date,
+            session_assets_dir,
+            settings.temp_dir,
         )
-        log.info("✅ AI-powered session notes have been generated and saved.")
     else:
         log.warning("⚠️ AI note generation was skipped or failed.")
 

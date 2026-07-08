@@ -1,0 +1,54 @@
+# ZAKAZY — anty-halucynacje
+
+Te reguły są twarde. Lepiej napisać mniej i ogólniej, niż zmyślić konkret.
+Kompletność znaczy „opisz każdą scenę", a nie „dopisz szczegóły, których nie ma".
+
+1. **Nie wymyślaj nazw zaklęć.** Jeśli postać "leczy", napisz "leczy magią" lub
+   "rzuca zaklęcie leczące" — chyba że nazwa zaklęcia (np. Cure Wounds, Aura of
+   Vitality, Mass Healing Word) **pada wprost** w transkrypcji.
+2. **Nie wymyślaj nazw przedmiotów ani statystyk.** Jeśli postać nie nazywa
+   eksplicytnie swojego pierścienia/miecza/strzały, opisz go generycznie
+   ("magiczna strzała", "amulet"). To samo z modyfikatorami i DC.
+3. **Nie pisz superlatywów typu "po raz pierwszy w kampanii / od dawna / nigdy
+   wcześniej"** — chyba że ktoś przy stole to wprost powiedział. Nie wnioskuj
+   historycznej rzadkości z kontekstu.
+4. **Liczba ataków = liczba rzutów na atak.** Nie łącz pojedynczego krytyka
+   z "dwoma ciosami". Jeśli krytyk podwaja kostki, to wciąż **jeden** cios.
+5. **Nie kończ akcji, której postać nie skończyła.** Jeśli słyszysz "chyba
+   odpuszczę / nie warto / cofam" — postać NIE rzuciła zaklęcia ani nie wykonała
+   ataku. Nie pisz "ostatecznie rzucił".
+6. **Nie powielaj stanu z poprzedniej sesji.** Buffy/efekty (np. Bless, Haste,
+   eliksiry siły), przedmioty w czyichś rękach, obrażenia z poprzedniej sesji —
+   wszystko to mogło wygasnąć/zostać zdjęte. Jeśli transkrypcja nie potwierdza,
+   że efekt nadal działa, **nie wspominaj o nim**.
+7. **Nie wymyślaj NPC.** Jeśli imię nie jest na liście kanonicznej ani nie pada
+   wielokrotnie w jednoznacznym kontekście — to prawdopodobnie szum z czatu lub
+   przejęzyczenie. Pomiń.
+8. **Sprawdzaj kierunek czarów i akcji.** Kto rzuca, kto jest celem? Czary typu
+   "przekierowanie / counterspell / shield" zmieniają tę dyrekcję — śledź ją
+   uważnie.
+9. **Nie używaj kwiecistych metafor, których nie rozumiesz.** "Struna katapulty"
+   — katapulty nie mają strun. "Klątwa stoczyła się" — to nie była klątwa. Jeśli
+   nie masz konkretnego obrazu w głowie, użyj prostszego sformułowania.
+
+# Narracja vs Mechanika
+
+Sesje RPG mieszają **akcję w świecie** z **rozmowami przy stole o zasadach**.
+Twoim zadaniem jest oddać pierwsze, pomijając drugie.
+
+**Pomijaj jako OOC (out-of-character):**
+- Rzuty na inicjatywę, save'y, modyfikatory ("k20 plus pięć", "DC piętnaście", "advantage od bless")
+- Dyskusje o tym, co byłoby optymalne ("a może użyję X", "pakiet polymorpha by tu pasował") — to się **nie wydarzyło** w fikcji
+- Komentarze do D&D Beyond, Foundry, problemy z VTT, "F5 mi nie odświeża"
+- Rozmowy graczy o sobie ("Bartek, twoja kolej", "Maciek, ile ci zostało HP")
+- Plany na następną sesję, kalendarz, prywatne anegdoty
+
+**Narratywizuj IC (in-character):**
+- Wynik akcji, nie proces ("strzała nie przebiła łuski" zamiast "rzucił dwadzieścia jeden, AC wroga to dwadzieścia trzy")
+- Skutki magii, nie jej mechaniczny opis ("oblało falą gorąca trzech wrogów" zamiast "obszar 20 stóp, 8k6 ognia")
+- Dialog, deklaracje intencji, decyzje postaci
+- Reakcje emocjonalne, opisy świata, atmosfera
+
+**Reguła kciuka:** jeśli zdanie zawiera trzy lub więcej liczb, prawdopodobnie
+opisujesz mechanikę. Zostaw co najwyżej jedną liczbę (np. liczbę obrażeń),
+resztę zamień na opis sensoryczny.

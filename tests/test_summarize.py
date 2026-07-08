@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from rpgnotes.summarize import gemini
-from rpgnotes.summarize.models import QuotesData, SessionData
+from rpgnotes.summarize.models import QuotesData
 
 # --- generate_summary -------------------------------------------------------
 
@@ -78,90 +78,6 @@ def test_generate_summary_retries_on_failure(monkeypatch: pytest.MonkeyPatch, tm
     )
     assert out == "OK"
     assert fake_model.generate_content.call_count == 2
-
-
-# --- generate_details -------------------------------------------------------
-
-_DETAILS_PAYLOAD = SessionData(
-    title="Pierwsza wyprawa",
-    events=["a"],
-    npcs=["b"],
-    locations=["c"],
-    items=["d"],
-)
-
-
-def test_generate_details_returns_cached_when_valid(tmp_path: Path) -> None:
-    cache = tmp_path / "details.json"
-    cache.write_text(_DETAILS_PAYLOAD.model_dump_json(), encoding="utf-8")
-
-    out = gemini.generate_details(
-        session_summary="sum",
-        details_prompt="prompt",
-        model_name="gemini-flash",
-        cache_file=cache,
-    )
-    assert out == _DETAILS_PAYLOAD
-
-
-def test_generate_details_regenerates_when_cache_is_invalid(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    cache = tmp_path / "details.json"
-    cache.write_text("not-json", encoding="utf-8")
-
-    fake_completions = MagicMock()
-    fake_completions.create.return_value = _DETAILS_PAYLOAD
-    fake_client = MagicMock()
-    fake_client.chat.completions = fake_completions
-
-    fake_genai = MagicMock()
-    monkeypatch.setattr(gemini, "genai", fake_genai)
-
-    fake_instructor = MagicMock()
-    fake_instructor.from_gemini.return_value = fake_client
-    fake_instructor.Mode.GEMINI_JSON = "GEMINI_JSON"
-    monkeypatch.setattr(gemini, "instructor", fake_instructor)
-
-    out = gemini.generate_details(
-        session_summary="sum",
-        details_prompt="prompt",
-        model_name="gemini-flash",
-        cache_file=cache,
-    )
-    assert out == _DETAILS_PAYLOAD
-    # cache should be overwritten with valid JSON
-    reread = SessionData.model_validate_json(cache.read_text(encoding="utf-8"))
-    assert reread == _DETAILS_PAYLOAD
-
-
-def test_generate_details_calls_instructor_with_prompt(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    cache = tmp_path / "details.json"
-
-    fake_completions = MagicMock()
-    fake_completions.create.return_value = _DETAILS_PAYLOAD
-    fake_client = MagicMock()
-    fake_client.chat.completions = fake_completions
-
-    fake_instructor = MagicMock()
-    fake_instructor.from_gemini.return_value = fake_client
-    fake_instructor.Mode.GEMINI_JSON = "GEMINI_JSON"
-    monkeypatch.setattr(gemini, "instructor", fake_instructor)
-    monkeypatch.setattr(gemini, "genai", MagicMock())
-
-    gemini.generate_details(
-        session_summary="THE SUMMARY",
-        details_prompt="extract details",
-        model_name="gemini-flash",
-        cache_file=cache,
-    )
-
-    args, kwargs = fake_completions.create.call_args
-    assert kwargs["response_model"] is SessionData
-    # The summary must be present in the user message body.
-    assert "THE SUMMARY" in kwargs["messages"][0]["content"]
 
 
 # --- generate_quotes --------------------------------------------------------
