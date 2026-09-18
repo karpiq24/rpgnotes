@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     anti_hallucination_file: Path = Path("./prompts/anti_hallucination.txt")
     validation_prompt_file: Path = Path("./prompts/validation.txt")
     phonetic_corrections_file: Path = Path(
-        "../OotD/.agent/skills/rpg-summarizer/resources/phonetic_corrections.md"
+        "../OotD/.agents/skills/rpg-summarizer/resources/phonetic_corrections.md"
     )
 
     # Session screenshots (Plan E). Unset/empty SCREENSHOTS_DIR disables the

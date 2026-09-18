@@ -80,6 +80,11 @@ def _load_phonetic_corrections(path: Path | None) -> str:
     if not path.exists():
         log.warning("Phonetic corrections file not found at %s. Skipping.", path)
         return ""
+    if not path.is_file():
+        # Docker Compose silently creates a missing bind-mount source as an
+        # empty directory, so a stale host path shows up here as a dir.
+        log.warning("Phonetic corrections path %s is not a file. Skipping.", path)
+        return ""
     try:
         return path.read_text(encoding="utf-8").strip()
     except OSError as e:
