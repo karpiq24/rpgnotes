@@ -11,48 +11,71 @@ Backends, auto-detected in this order:
 
 1. ``grim`` (+ ``slurp`` for region selection) — wlroots Wayland compositors.
    Region-native capture; nothing outside the region is ever grabbed.
-2. XDG desktop portal (``org.freedesktop.portal.Screenshot``) — GNOME Wayland.
+2. ``spectacle --background`` — KDE Plasma (e.g. Fedora KDE), Wayland or X11.
+   KWin lets Spectacle capture without a permission prompt. It grabs the whole
+   desktop in logical coordinates into a private temp dir; we crop to the
+   region and DELETE the full-desktop original immediately. Monitors come from
+   ``kscreen-doctor`` (names like DP-1, HDMI-A-2).
+3. XDG desktop portal (``org.freedesktop.portal.Screenshot``) — GNOME Wayland.
    The portal grabs the full desktop to a temporary file; we immediately crop
    to the selected region and DELETE the full-screen original, so only the
    region ever persists. Requires a one-time permission grant (see
    ``--grant-portal-permission``).
-3. X11 tools (``maim``/``scrot``/ImageMagick ``magick x:root``) — X11 sessions.
+4. X11 tools (``maim``/``scrot``/ImageMagick ``magick x:root``) — X11 sessions.
    Full-root grab cropped to the region in-memory before writing.
 
 Privacy: only the selected region is written to the output directory. Select
 a region covering ONLY the VTT window/monitor — never one containing Discord.
 
-Output layout (``--output-dir``, default ``$DOWNLOADS_DIR/screens_session``):
+Output layout (``--output-dir``, default ``$SCREENSHOTS_DIR``, else
+``$TEMP_DIR/screenshots``):
 
     session_start.txt      unix timestamp written once at startup
     shot_<unix_ts>.png     one cropped frame per kept capture
+
+A new capture moves the frames of an earlier game (started over 12 h ago) to
+``previous/``; restarting within 12 h resumes the same capture.
 
 Frames nearly identical to the previous KEPT frame (mean absolute difference
 of a 64x64 grayscale downscale below ``--dedupe-threshold``) are dropped.
 
 Usage (start BEFORE the session, stop with Ctrl+C):
 
-    python3 scripts/capture_session.py            # pick monitor/region, go
-    python3 scripts/capture_session.py --monitor DP-1
+    ./run.sh capture                              # same as the line below
+    python3 scripts/capture_session.py            # CAPTURE_MONITOR/CAPTURE_CROP from .env
+    python3 scripts/capture_session.py --monitor LG --crop 2459x1342+100+98
     python3 scripts/capture_session.py --region 2560x1440+0+0 --interval 60
+
+``--monitor`` matches a connector name (DP-1) or the monitor's EDID model
+("LG" finds an "LG ULTRAGEAR+" on any port). ``--crop`` cuts a sub-region
+out of the chosen monitor, in that monitor's own coordinates — e.g. only the
+Foundry page inside a maximized Firefox, without the desktop panels, browser
+toolbars, bookmarks bar and vertical-tabs column. Defaults for both come from
+CAPTURE_MONITOR / CAPTURE_CROP in the repo .env.
 """
 
 from __future__ import annotations
 
 import argparse
+import atexit
 import contextlib
+import json
 import os
 import re
 import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SIGNATURE_SIZE = 64  # downscale side for dedupe signatures
+# A capture started longer ago than this belongs to an earlier game: its
+# frames are moved aside instead of being mixed into the new session.
+STALE_CAPTURE_SECS = 12 * 3600
 
 
 # --------------------------------------------------------------------------
@@ -71,6 +94,12 @@ class Region:
 
     def __str__(self) -> str:
         return f"{self.width}x{self.height}+{self.x}+{self.y}"
+
+    def sub_region(self, crop: Region) -> Region:
+        """`crop` (in this region's own coordinates) as an absolute region."""
+        if crop.x + crop.width > self.width or crop.y + crop.height > self.height:
+            raise ValueError(f"Crop {crop} does not fit inside {self.width}x{self.height}.")
+        return Region(crop.width, crop.height, self.x + crop.x, self.y + crop.y)
 
     @property
     def grim_geometry(self) -> str:
@@ -91,8 +120,81 @@ def parse_region(spec: str) -> Region:
     return Region(w, h, x, y)
 
 
+def _kscreen_monitors() -> list[tuple[str, Region]]:
+    """KDE outputs from `kscreen-doctor -j` as (name, region) in logical coordinates.
+
+    kscreen reports the mode size in physical pixels plus a scale factor; the
+    desktop (and Spectacle's ``--scaled`` capture) uses logical pixels, so a
+    4K output at scale 1.7 becomes 2259x1271 at its logical position.
+    """
+    tool = shutil.which("kscreen-doctor")
+    if not tool:
+        return []
+    try:
+        out = subprocess.run(
+            [tool, "-j"], capture_output=True, text=True, timeout=10, check=True
+        ).stdout
+        data = json.loads(out)
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return []
+    monitors: list[tuple[str, Region]] = []
+    for output in data.get("outputs", []):
+        if not (output.get("connected") and output.get("enabled")):
+            continue
+        size = output.get("size") or {}
+        pos = output.get("pos") or {}
+        width, height = size.get("width"), size.get("height")
+        if not width or not height:
+            continue
+        if output.get("rotation") in (2, 8):  # rotated left/right
+            width, height = height, width
+        scale = float(output.get("scale") or 1.0)
+        region = Region(
+            round(width / scale), round(height / scale), int(pos.get("x", 0)), int(pos.get("y", 0))
+        )
+        monitors.append((str(output.get("name")), region))
+    return sorted(monitors, key=lambda item: (item[1].x, item[1].y))
+
+
+def edid_model(connector: str) -> str:
+    """'<vendor code> <model>' from the connector's EDID (e.g. 'GSM LG ULTRAGEAR+'), or ''."""
+    for edid_file in Path("/sys/class/drm").glob(f"card*-{connector}/edid"):
+        try:
+            edid = edid_file.read_bytes()
+        except OSError:
+            continue
+        if len(edid) < 128:
+            continue
+        code = (edid[8] << 8) | edid[9]
+        vendor = "".join(chr(((code >> shift) & 0x1F) + 64) for shift in (10, 5, 0))
+        model = ""
+        for offset in range(54, 126, 18):  # display descriptors; 0xFC = product name
+            if edid[offset : offset + 3] == b"\0\0\0" and edid[offset + 3] == 0xFC:
+                model = edid[offset + 5 : offset + 18].decode("ascii", "replace").strip()
+        return f"{vendor} {model}".strip()
+    return ""
+
+
+def find_monitor(spec: str, monitors: list[tuple[str, Region]]) -> tuple[str, Region]:
+    """Match `spec` against connector names (exact), then EDID vendor/model (substring)."""
+    wanted = spec.strip().casefold()
+    for name, region in monitors:
+        if name.casefold() == wanted:
+            return name, region
+    matches = [(n, r) for n, r in monitors if wanted in edid_model(n).casefold()]
+    if len(matches) == 1:
+        return matches[0]
+    available = ", ".join(f"{n} ({edid_model(n) or '?'})" for n, _ in monitors) or "none"
+    problem = "matches several monitors" if matches else "not found"
+    raise SystemExit(f"Monitor {spec!r} {problem}. Available: {available}")
+
+
 def list_monitors() -> list[tuple[str, Region]]:
-    """Parse `xrandr` connected outputs into (name, region) pairs."""
+    """Connected monitors as (name, region): kscreen-doctor on KDE, else `xrandr`."""
+    if _kde_session():
+        monitors = _kscreen_monitors()
+        if monitors:
+            return monitors
     xrandr = shutil.which("xrandr")
     if not xrandr:
         return []
@@ -122,11 +224,12 @@ def select_region_interactive() -> Region:
     monitors = list_monitors()
     if not monitors:
         raise SystemExit(
-            "No slurp and no xrandr monitors found. Pass --region WxH+X+Y explicitly."
+            "No slurp and no monitors found (kscreen-doctor/xrandr). "
+            "Pass --region WxH+X+Y explicitly."
         )
     print("Select the monitor showing the VTT (never the one with Discord!):")
     for i, (name, region) in enumerate(monitors, start=1):
-        print(f"  [{i}] {name}  {region}")
+        print(f"  [{i}] {name}  {region}  {edid_model(name)}")
     print(f"  [{len(monitors) + 1}] enter a custom region (WxH+X+Y)")
     while True:
         choice = input(f"Choice [1-{len(monitors) + 1}]: ").strip()
@@ -170,6 +273,48 @@ class GrimBackend:
             raise CaptureError(f"grim failed: {proc.stderr.strip()}")
 
 
+class SpectacleBackend:
+    """KDE Plasma via `spectacle --background` (no permission prompt under KWin).
+
+    Spectacle writes the FULL desktop (logical coordinates, ``--scaled``, the
+    same space as the kscreen-doctor monitor geometry) into a private 0700
+    temp dir; we crop to the region and delete the original immediately, so
+    nothing outside the region persists on disk.
+    """
+
+    name = "spectacle"
+
+    def __init__(self) -> None:
+        self._tmpdir = Path(tempfile.mkdtemp(prefix="rpgnotes-capture-"))
+        atexit.register(shutil.rmtree, self._tmpdir, ignore_errors=True)
+
+    @staticmethod
+    def available() -> bool:
+        return _kde_session() and shutil.which("spectacle") is not None and _have_magick()
+
+    def capture(self, region: Region, dest: Path) -> None:
+        full = self._tmpdir / "desktop.png"
+        try:
+            proc = subprocess.run(
+                [
+                    "spectacle", "--background", "--nonotify", "--fullscreen",
+                    "--scaled", "--output", str(full),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if proc.returncode != 0 or not full.exists():
+                raise CaptureError(
+                    f"spectacle failed (exit {proc.returncode}): {proc.stderr.strip()}"
+                )
+            _magick(str(full), "-crop", region.magick_geometry, "+repage", str(dest))
+        finally:
+            full.unlink(missing_ok=True)  # never keep the full-desktop frame
+        if not dest.exists():
+            raise CaptureError("spectacle capture: crop produced no file")
+
+
 class PortalBackend:
     """GNOME Wayland via org.freedesktop.portal.Screenshot.
 
@@ -204,7 +349,7 @@ class PortalBackend:
             from gi.repository import GLib  # noqa: F401
         except ImportError:
             return False
-        return shutil.which("magick") is not None or shutil.which("convert") is not None
+        return _have_magick()
 
     @staticmethod
     def grant_permission() -> None:
@@ -319,6 +464,15 @@ def _magick(*args: str) -> None:
         raise CaptureError(f"magick {' '.join(args[:2])}… failed: {proc.stderr.strip()}")
 
 
+def _have_magick() -> bool:
+    return shutil.which("magick") is not None or shutil.which("convert") is not None
+
+
+def _kde_session() -> bool:
+    desktops = os.environ.get("XDG_CURRENT_DESKTOP", "").upper().split(":")
+    return "KDE" in desktops
+
+
 def _wayland_session() -> bool:
     return os.environ.get("XDG_SESSION_TYPE") == "wayland" or bool(
         os.environ.get("WAYLAND_DISPLAY")
@@ -349,9 +503,16 @@ def _reexec_system_python_for_portal() -> None:
     os.execv(str(sys_python), [str(sys_python), str(Path(__file__).resolve()), *sys.argv[1:]])
 
 
-def pick_backend() -> GrimBackend | PortalBackend | X11Backend:
+def pick_backend() -> GrimBackend | SpectacleBackend | PortalBackend | X11Backend:
     if GrimBackend.available():
         return GrimBackend()
+    if SpectacleBackend.available():
+        return SpectacleBackend()
+    if _kde_session() and _wayland_session():
+        raise SystemExit(
+            "KDE Wayland session, but Spectacle or ImageMagick is missing. Install them:\n"
+            "  sudo dnf install spectacle ImageMagick"
+        )
     if _wayland_session():
         # NEVER fall back to X11 on Wayland: through XWayland it sees only
         # X11 apps (e.g. Discord) — native Wayland windows (Firefox/Foundry)
@@ -371,8 +532,8 @@ def pick_backend() -> GrimBackend | PortalBackend | X11Backend:
         return X11Backend()
     raise SystemExit(
         "No usable screenshot backend found. Install grim+slurp (wlroots), "
-        "ensure python3-dbus/python3-gi + ImageMagick (GNOME Wayland), or "
-        "maim/scrot/ImageMagick (X11)."
+        "spectacle + ImageMagick (KDE Plasma), python3-dbus/python3-gi + "
+        "ImageMagick (GNOME Wayland), or maim/scrot/ImageMagick (X11)."
     )
 
 
@@ -414,25 +575,65 @@ def mean_abs_diff(a: bytes, b: bytes) -> float:
 # --------------------------------------------------------------------------
 
 
-def default_output_dir() -> Path:
-    """`$DOWNLOADS_DIR/screens_session`, DOWNLOADS_DIR read from repo .env."""
-    downloads = os.environ.get("DOWNLOADS_DIR", "")
+def env_value(key: str) -> str:
+    """`key` from the environment, else from the repo .env (first match), else ''."""
+    value = os.environ.get(key, "")
     env_file = REPO_ROOT / ".env"
-    if not downloads and env_file.exists():
+    if not value and env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
-            if line.startswith("DOWNLOADS_DIR="):
-                downloads = line.split("=", 1)[1].strip().strip("'\"")
+            if line.startswith(f"{key}="):
+                value = line.split("=", 1)[1].split(" #", 1)[0].strip().strip("'\"")
                 break
-    base = Path(downloads).expanduser() if downloads else REPO_ROOT / "Downloads"
-    if not base.is_absolute():
-        base = REPO_ROOT / base
-    return base / "screens_session"
+    return value
+
+
+def default_output_dir() -> Path:
+    """`$SCREENSHOTS_DIR` (where the pipeline reads frames), else `$TEMP_DIR/screenshots`.
+
+    Both are read from the repo .env; relative paths are taken from the repo root.
+    """
+    screenshots = env_value("SCREENSHOTS_DIR")
+    path = (
+        Path(screenshots).expanduser()
+        if screenshots
+        else Path(env_value("TEMP_DIR") or "temp").expanduser() / "screenshots"
+    )
+    return path if path.is_absolute() else REPO_ROOT / path
 
 
 # --------------------------------------------------------------------------
 # Main loop
 # --------------------------------------------------------------------------
+
+
+def set_aside_previous_capture(output_dir: Path, *, fresh: bool) -> None:
+    """Move an earlier game's frames to `previous/`; resume a recent capture.
+
+    A capture restarted within STALE_CAPTURE_SECS (crash, reboot mid-game)
+    continues in place. Otherwise the old frames go to `previous/` (replacing
+    the one before), which the pipeline ignores — one game of backup in case
+    it was not processed yet.
+    """
+    start_file = output_dir / "session_start.txt"
+    frames = sorted(output_dir.glob("shot_*.png"))
+    if not frames and not start_file.exists():
+        return
+    try:
+        started: int | None = int(start_file.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        started = None
+    if not fresh and started is not None and time.time() - started < STALE_CAPTURE_SECS:
+        when = time.strftime("%d.%m %H:%M", time.localtime(started))
+        print(f"Resuming the capture started {when} ({len(frames)} frames so far).")
+        return
+    previous = output_dir / "previous"
+    shutil.rmtree(previous, ignore_errors=True)
+    previous.mkdir()
+    for path in [*frames, start_file]:
+        if path.exists():
+            path.rename(previous / path.name)
+    print(f"Moved {len(frames)} frame(s) of the previous capture to {previous}.")
 
 
 def run(args: argparse.Namespace) -> int:
@@ -442,17 +643,19 @@ def run(args: argparse.Namespace) -> int:
     backend = pick_backend()
     region = parse_region(args.region) if args.region else None
     if region is None and args.monitor:
-        monitors = dict(list_monitors())
-        if args.monitor not in monitors:
-            raise SystemExit(
-                f"Monitor {args.monitor!r} not found. Available: {', '.join(monitors) or 'none'}"
-            )
-        region = monitors[args.monitor]
+        name, region = find_monitor(args.monitor, list_monitors())
+        print(f"Monitor: {name} {edid_model(name)}".rstrip())
     if region is None:
         region = select_region_interactive()
+    if args.crop:
+        try:
+            region = region.sub_region(parse_region(args.crop))
+        except ValueError as e:
+            raise SystemExit(f"Bad --crop: {e}") from e
 
     start_ts = int(time.time())
     start_file = output_dir / "session_start.txt"
+    set_aside_previous_capture(output_dir, fresh=args.fresh)
     if start_file.exists():
         print(f"Note: reusing existing {start_file} (resumed session).")
     else:
@@ -540,7 +743,20 @@ def main(argv: list[str] | None = None) -> int:
         "--region", help="Capture region as WxH+X+Y (skips interactive selection)."
     )
     parser.add_argument(
-        "--monitor", help="Capture a whole monitor by xrandr name (e.g. DP-1)."
+        "--monitor",
+        default=env_value("CAPTURE_MONITOR") or None,
+        help=(
+            "Monitor by connector name (DP-1) or EDID model substring (LG). "
+            "Default: CAPTURE_MONITOR from .env."
+        ),
+    )
+    parser.add_argument(
+        "--crop",
+        default=env_value("CAPTURE_CROP") or None,
+        help=(
+            "WxH+X+Y inside the chosen monitor/region (e.g. only the browser page). "
+            "Default: CAPTURE_CROP from .env."
+        ),
     )
     parser.add_argument(
         "--dedupe-threshold",
@@ -549,6 +765,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Mean abs 0-255 gray diff below which a frame is dropped as unchanged.",
     )
     parser.add_argument("--once", action="store_true", help="Capture a single frame and exit.")
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help=(
+            "Start a new capture even if the last one began less than "
+            f"{STALE_CAPTURE_SECS // 3600} h ago (its frames move to previous/)."
+        ),
+    )
     parser.add_argument(
         "--grant-portal-permission",
         action="store_true",
