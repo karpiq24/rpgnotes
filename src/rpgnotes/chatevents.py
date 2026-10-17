@@ -32,7 +32,7 @@ class ChatEvent(BaseModel):
 
     offset_secs: float
     speaker: str
-    kind: str  # "roll" | "chat"
+    kind: str  # "roll" | "chat" | "event" (scene, combat, handout, music from the Foundry recorder)
     text: str
 
 

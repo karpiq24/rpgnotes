@@ -112,6 +112,11 @@ class Settings(BaseSettings):
         return self.temp_dir / "transcriptions"
 
     @cached_property
+    def foundry_snapshots_dir(self) -> Path:
+        """Map snapshots unpacked from a Foundry recorder export."""
+        return self.temp_dir / "foundry_snapshots"
+
+    @cached_property
     def processed_dir(self) -> Path:
         return self.downloads_dir / "_processed"
 

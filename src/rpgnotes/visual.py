@@ -20,7 +20,8 @@ SIGNATURE_SIZE = 64  # downscale side used for dedupe signatures
 # earlier session (setup before the recording is normal; a week is not).
 STALE_FRAME_SECS = 3600
 
-_SHOT_RE = re.compile(r"^shot_(\d+)(_key)?\.png$")
+_SHOT_RE = re.compile(r"^shot_(\d+)(_key)?\.(?:png|webp|jpg)$")
+_MIME_TYPES = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg"}
 
 
 class VisualEntry(BaseModel):
@@ -33,7 +34,7 @@ class VisualEntry(BaseModel):
 
 
 def parse_screenshot_timestamp(path: Path) -> tuple[int, bool] | None:
-    """Extract (unix_ts, is_key) from a `shot_<ts>.png` / `shot_<ts>_key.png` name."""
+    """Extract (unix_ts, is_key) from a `shot_<ts>.png` / `shot_<ts>_key.webp` name."""
     match = _SHOT_RE.match(path.name)
     if not match:
         return None
@@ -150,11 +151,11 @@ def prepare_upload(
     (`max_dim` 0 with no crop) or ImageMagick is unavailable/fails.
     """
     if max_dim <= 0 and not crop:
-        return path.read_bytes(), "image/png"
+        return path.read_bytes(), _MIME_TYPES.get(path.suffix, "image/png")
     magick = shutil.which("magick") or shutil.which("convert")
     if not magick:
         log.warning("ImageMagick not found — uploading %s uncompressed.", path.name)
-        return path.read_bytes(), "image/png"
+        return path.read_bytes(), _MIME_TYPES.get(path.suffix, "image/png")
     crop_args = ["-crop", crop, "+repage"] if crop else []
     resize_args = ["-resize", f"{max_dim}x{max_dim}>"] if max_dim > 0 else []
     try:
@@ -174,14 +175,14 @@ def prepare_upload(
         )
     except (subprocess.SubprocessError, OSError) as e:
         log.warning("Compression failed for %s (%s) — uploading uncompressed.", path.name, e)
-        return path.read_bytes(), "image/png"
+        return path.read_bytes(), _MIME_TYPES.get(path.suffix, "image/png")
     if proc.returncode != 0 or not proc.stdout:
         log.warning(
             "Compression failed for %s (%s) — uploading uncompressed.",
             path.name,
             proc.stderr.decode(errors="replace").strip() or "empty output",
         )
-        return path.read_bytes(), "image/png"
+        return path.read_bytes(), _MIME_TYPES.get(path.suffix, "image/png")
     return proc.stdout, "image/jpeg"
 
 
@@ -225,7 +226,7 @@ def caption_screenshots(
             log.warning("Failed to load %s: %s. Re-captioning.", visual_log_file, e)
 
     shots: list[tuple[Path, int, bool]] = []
-    for path in screenshots_dir.glob("shot_*.png"):
+    for path in screenshots_dir.glob("shot_*"):
         parsed = parse_screenshot_timestamp(path)
         if parsed is None:
             log.warning("Skipping screenshot with unrecognized name: %s", path.name)

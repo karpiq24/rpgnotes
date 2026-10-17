@@ -4,7 +4,8 @@ Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a
 
 - **Transcription**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2 — AMD ROCm and NVIDIA CUDA both work.
 - **Summarization**: Google Gemini (`gemini-4-argon` by default) via the `google-genai` SDK, with native structured output.
-- **Run**: `./run.sh capture` during the game, `./run.sh` after it.
+- **Record**: the RPG Notes Recorder Foundry module saves chat, rolls, scenes, combat, handouts and map snapshots by itself.
+- **Run**: `./run.sh` after the game.
 
 ## Quick start
 
@@ -20,7 +21,7 @@ That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/a
 
 | Command | What it does |
 |---|---|
-| `./run.sh capture` | During the game: Foundry screenshots every 10 min (runs on the host, `Ctrl+C` to stop). |
+| `./run.sh capture` | Only without the Foundry module: screen capture during the game (runs on the host, `Ctrl+C` to stop). |
 | `./run.sh` | After the game: shows the session it found and what's done, then a menu. `Enter` processes it. |
 | `./run.sh status` | Only the status screen, then exit. |
 | `./run.sh full` | Transcribe + Gemini draft/quotes, no questions (also the default when not in a terminal). |
@@ -32,8 +33,8 @@ That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/a
 
 ## Day-to-day workflow
 
-1. **Before the game:** `./run.sh capture` and leave it running. Frames of the previous game move to `temp/screenshots/previous/`.
-2. **After the game:** drop the Craig `craig-*.flac.zip` and the Foundry `session<NN>.json` into `DOWNLOADS_DIR`, then `./run.sh` and press `Enter`.
+1. **The game:** start Craig with `/join` and accept the Foundry module's *Start recording* prompt (or click the record toggle). When you shut down the world, choose *Save and shut down*: `session<NN>.json` lands in your Downloads folder.
+2. **After the game:** download the Craig `craig-*.flac.zip` into `DOWNLOADS_DIR` too, then `./run.sh` and press `Enter`.
 
 The status screen looks like this:
 
@@ -56,6 +57,22 @@ The status screen looks like this:
 ```
 
 Runs are resumable: stop with `Ctrl+C` at any point and the next run continues where it left off (the menu then says *Continue* and offers *Start over*). Work in `TEMP_DIR` is tagged with its session number (`temp/session.txt`) and cleared automatically when a new session comes in, so audio of the previous session can never leak into the next one; screenshots, logs and caches survive the clearing. The session's Craig zip is moved to `DOWNLOADS_DIR/_processed/` and its name recorded in `audio_source.txt`, so *Start over* reuses exactly that zip.
+
+## Foundry recorder module
+
+`foundry/rpgnotes-recorder/` is a Foundry VTT module (v13+, tested on v14 with dnd5e 6) that replaces both the chat archive macro and the screenshot script. It runs in the GM's browser only.
+
+- **You start and stop it:** with the record toggle in the token controls (highlighted while recording), `/rpgnotes start` / `stop`, or a macro calling `game.modules.get("rpgnotes-recorder").api.start()` / `.stop()`. Saving downloads `session<NN>.json` (a normal browser download) and raises the session number by one.
+- **It only suggests:** when 4 players are connected (setting) it asks whether to start ("Not now" mutes it for 15 min); when you *Return to Setup* or log out while recording it asks *Save and shut down* / *Keep recording for later* / *Cancel*; if all players disconnect it asks whether to save (rare, since tabs usually stay open after the game).
+- **Nothing gets lost:** everything is kept in the browser's IndexedDB while recording, so a reload or crash resumes. An unsaved recording older than 30 minutes found when the world loads gets a *Save it now* / *Continue recording* / *Discard* prompt.
+- **Recorded:** every chat message with dnd5e roll data (attack/save/damage/usage, item, formula, total, DC, crits, damage type), whispers marked as such, OOC/IC style; the active scene; combat start/rounds/turns/end; creatures dropping to 0 HP; images and journal pages shown to players (with the image and the page text); music changes.
+- **Map snapshots:** a render of the map canvas only (no browser or Foundry UI), as the players see it (GM-only tokens hidden), every 10 minutes when it changed, on each scene change and combat start. Snapshots are skipped while the GM looks at a scene that isn't the active one.
+- **Chat command** (GM): `/rpgnotes` status · `start` · `stop` (save now) · `key` (snapshot marked as a key moment) · `discard` · `number 85` (set the session number).
+- **After saving** it offers to clear the chat log (a long log slows Foundry down).
+
+The pipeline reads the file like the old chat export (same `title`/`archiveDate` keys): events become `[CZAT …]` lines in the enriched transcript, and the snapshots are unpacked to `TEMP_DIR/foundry_snapshots/` and captioned instead of `SCREENSHOTS_DIR`. The wiki copy (`chat_log.json`) keeps the snapshot metadata without the images. Old macro exports still work.
+
+**Install:** in Foundry's setup screen, *Add-on Modules → Install Module*, paste the manifest URL `https://github.com/karpiq24/rpgnotes/releases/latest/download/module.json`, enable the module in the world, then set the next session number (`/rpgnotes number 85` or the module settings). **Release:** bump `version` and the `download` URL in `module.json`, run `foundry/build.sh`, and upload `foundry/dist/*` to a GitHub release `foundry-v<version>`.
 
 ## Podman / Fedora
 
@@ -141,6 +158,8 @@ There is no separate handoff/copy step: point `OUTPUT_DIR` directly at an OotD c
 
 ## Session screenshots (optional visual context)
 
+With the Foundry recorder module this section is not needed: its map snapshots are used instead. The screen capture script below still works without the module.
+
 Capture the VTT screen during the session and the pipeline will interleave Gemini-captioned `[VISUAL HH:MM:SS] …` anchor lines into the transcript — hard evidence of scene changes, token positions, and handouts for the summarizer and fact-checker.
 
 **Before the session starts** (alongside starting Craig), run on the host:
@@ -185,6 +204,7 @@ Key Whisper knobs:
 src/rpgnotes/
 ├── cli.py             commands + the interactive menu
 ├── status.py          what the menu shows: session found, inputs, progress
+├── foundry.py         read the Foundry recorder module's session file
 ├── config.py          pydantic-settings, .env-driven
 ├── pipeline.py        full / transcription / manual workflows
 ├── chatlog.py         find newest session*.json, extract number+date

@@ -107,3 +107,13 @@ def test_eof_quits_menu(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr("builtins.input", eof)
     assert cli._run_menu(settings) == 0
+
+
+def test_status_shows_foundry_recorder_file(tmp_path: Path) -> None:
+    from tests.test_foundry import _export
+
+    settings = _settings(tmp_path)
+    (settings.downloads_dir / "session85.json").write_text(json.dumps(_export()), encoding="utf-8")
+    text = format_status(collect_status(settings), settings)
+    assert "Foundry      session85.json: 14 events, 4 map snapshots" in text
+    assert "Screenshots" not in text

@@ -215,3 +215,25 @@ def test_prepare_audio_records_zip_and_reuses_it(tmp_path: Path) -> None:
     pipeline.clear_temp_work(settings)
     pipeline._prepare_audio(settings, session_assets_dir)
     assert (settings.audio_output_dir / "1-dm.flac").exists()
+
+
+def test_foundry_snapshots_replace_screenshot_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.test_foundry import _export
+
+    settings = _make_settings(tmp_path)
+    settings.ensure_directories()
+    settings.screenshots_dir = str(tmp_path / "screens")
+    settings.visual_crop = "100x100+0+0"
+    (settings.downloads_dir / "session85.json").write_text(json.dumps(_export()), encoding="utf-8")
+    settings.visual_caption_prompt_file = settings.whisper_prompt_file
+
+    pipeline._extract_foundry_snapshots(settings)
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(pipeline, "caption_screenshots", lambda **kw: seen.update(kw) or [])
+    pipeline._caption_session_screenshots(settings, settings.assets_base_dir / "085", "", 85)
+
+    assert seen["screenshots_dir"] == settings.foundry_snapshots_dir
+    assert seen["crop"] == ""
+    assert len(list(settings.foundry_snapshots_dir.glob("shot_*.webp"))) == 3

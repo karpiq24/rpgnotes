@@ -11,10 +11,10 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from . import llm
+from . import foundry, llm
 from .audio import find_audio_zip, read_recording_start, unzip_audio
 from .chatevents import ChatEvent, extract_chat_events, write_chat_events
-from .chatlog import process_chat_log
+from .chatlog import find_chat_log, process_chat_log
 from .config import Settings
 from .enrich import build_enriched_transcript
 from .summarize import (
@@ -77,6 +77,7 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
         log.warning("Could not determine date. Defaulting to last Monday: %s", session_date)
     log.info("✅ Session %d on %s", session_number, session_date)
     _claim_temp_for_session(settings, session_number)
+    _extract_foundry_snapshots(settings)
 
     log.info("\n[Step 2/4] Preparing Audio Files…")
     session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
@@ -159,6 +160,22 @@ def _save_recording_start(session_assets_dir: Path, zip_path: Path | None) -> No
     log.info("Recording start %d saved to %s", started, anchor_file)
 
 
+def _extract_foundry_snapshots(settings: Settings) -> None:
+    """Unpack the map snapshots embedded in a Foundry recorder export into temp."""
+    info = find_chat_log(settings.downloads_dir)
+    if info is None:
+        return
+    try:
+        data = json.loads(info.path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning("Could not read %s: %s", info.path.name, e)
+        return
+    if not foundry.is_foundry_export(data):
+        return
+    written = foundry.extract_snapshots(data, settings.foundry_snapshots_dir)
+    log.info("Extracted %d map snapshot(s) from %s.", written, info.path.name)
+
+
 def _load_recording_start(session_assets_dir: Path) -> int | None:
     anchor_file = session_assets_dir / "recording_start.txt"
     if not anchor_file.exists():
@@ -185,7 +202,12 @@ def _save_chat_events(session_assets_dir: Path) -> None:
         log.warning("No chat_log.json in %s — skipping chat events.", session_assets_dir)
         return
     try:
-        events = extract_chat_events(chat_log_file, _load_recording_start(session_assets_dir))
+        recording_start = _load_recording_start(session_assets_dir)
+        data = json.loads(chat_log_file.read_text(encoding="utf-8"))
+        if foundry.is_foundry_export(data):
+            events = foundry.events_from_export(data, recording_start)
+        else:
+            events = extract_chat_events(chat_log_file, recording_start)
         write_chat_events(events, events_json, session_assets_dir / "chat_events.txt")
     except Exception as e:
         log.warning("Chat event extraction failed: %s. Continuing without chat events.", e)
@@ -210,8 +232,15 @@ def _caption_session_screenshots(
     glossary: str,
     session_number: int,
 ) -> list[VisualEntry]:
-    """Caption screenshots when SCREENSHOTS_DIR is configured. Best-effort: [] otherwise."""
+    """Caption the Foundry recorder's map snapshots, else frames in SCREENSHOTS_DIR.
+
+    Best-effort: [] when there are none.
+    """
+    crop = settings.visual_crop
     screenshots_dir = settings.resolved_screenshots_dir
+    if any(settings.foundry_snapshots_dir.glob("shot_*")):
+        # Canvas renders have no desktop or browser chrome to crop away.
+        screenshots_dir, crop = settings.foundry_snapshots_dir, ""
     if screenshots_dir is None:
         return []
     if not screenshots_dir.is_dir():
@@ -230,7 +259,7 @@ def _caption_session_screenshots(
             api_sleep_secs=settings.gemini_api_sleep_secs,
             upload_max_dim=settings.visual_upload_max_dim,
             upload_jpeg_quality=settings.visual_upload_jpeg_quality,
-            crop=settings.visual_crop,
+            crop=crop,
             recording_start=_load_recording_start(session_assets_dir),
         )
     except Exception as e:

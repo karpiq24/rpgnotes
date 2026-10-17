@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime as _dt
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from .audio import read_recording_start
 from .chatlog import find_chat_log
 from .config import Settings
+from .foundry import is_foundry_export
 from .pipeline import has_temp_work, session_audio_zip, temp_session
 from .visual import STALE_FRAME_SECS, parse_screenshot_timestamp
 
@@ -28,6 +30,9 @@ class SessionStatus:
     draft: bool = False
     quotes: bool = False
     screenshots_enabled: bool = False
+    # Session file saved by the Foundry recorder module (events + map snapshots).
+    foundry_events: int | None = None
+    foundry_snapshots: int = 0
     screenshots: int = 0
     stale_screenshots: int = 0
     api_key: bool = False
@@ -70,6 +75,16 @@ def collect_status(settings: Settings) -> SessionStatus:
             (settings.temp_transcriptions_dir / f"{track.stem}.json").exists() for track in tracks
         )
 
+    try:
+        data = json.loads(status.chat_log.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = None
+    if is_foundry_export(data):
+        assert isinstance(data, dict)
+        status.foundry_events = len(data.get("events", []))
+        status.foundry_snapshots = len(data.get("snapshots", []))
+        return status
+
     screenshots_dir = settings.resolved_screenshots_dir
     status.screenshots_enabled = screenshots_dir is not None
     if screenshots_dir is not None and screenshots_dir.is_dir():
@@ -100,7 +115,7 @@ def format_status(status: SessionStatus, settings: Settings) -> str:
                 rule,
                 f"  Put these two files into {downloads}:",
                 "    craig-*.flac.zip    audio from the Craig bot",
-                "    session<NN>.json    chat log exported from Foundry",
+                "    session<NN>.json    saved by the RPG Notes Recorder Foundry module",
             ]
         )
 
@@ -109,7 +124,13 @@ def format_status(status: SessionStatus, settings: Settings) -> str:
         title += f" · {status.session_date.isoformat()}"
     lines = [rule, title, rule]
     assert status.chat_log is not None
-    lines.append(f"  Chat log     {status.chat_log.name}")
+    if status.foundry_events is None:
+        lines.append(f"  Chat log     {status.chat_log.name}")
+    else:
+        lines.append(
+            f"  Foundry      {status.chat_log.name}: {status.foundry_events} events, "
+            f"{status.foundry_snapshots} map snapshots"
+        )
 
     if status.audio_zip is None:
         lines.append(f"  Audio        ✗ no craig-*.flac.zip in {downloads}")
@@ -118,7 +139,9 @@ def format_status(status: SessionStatus, settings: Settings) -> str:
         where = " (already processed)" if status.audio_zip.parent == settings.processed_dir else ""
         lines.append(f"  Audio        {status.audio_zip.name}, {size_mb:.0f} MB{where}")
 
-    if not status.screenshots_enabled:
+    if status.foundry_events is not None:
+        pass  # the map snapshots come with the Foundry file
+    elif not status.screenshots_enabled:
         lines.append("  Screenshots  off (SCREENSHOTS_DIR is empty)")
     elif status.screenshots == 0:
         lines.append("  Screenshots  none")

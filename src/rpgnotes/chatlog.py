@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 
-from .helpers import prettify_json
+from .foundry import is_foundry_export, without_snapshot_data
 
 log = logging.getLogger("rpgnotes")
 
@@ -64,9 +64,15 @@ def process_chat_log(
         log.info("Chat log for session %d already exists. Skipping copy.", session_number)
         return session_number, session_date
 
-    prettified = prettify_json(newest_chat_log)
-    if prettified is None:
+    try:
+        data = json.loads(newest_chat_log.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+        log.error("Error processing JSON in %s: %s", newest_chat_log, e)
         return session_number, session_date
+    if is_foundry_export(data):
+        # Snapshots are extracted into temp; the wiki copy keeps their metadata only.
+        data = without_snapshot_data(data)
+    prettified = json.dumps(data, indent=2, ensure_ascii=False)
 
     output_filepath.write_text(prettified, encoding="utf-8")
     log.info("Prettified chat log saved to: %s", output_filepath)

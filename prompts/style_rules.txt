@@ -61,3 +61,8 @@ Kolejny akapit z nowym wątkiem lub wydarzeniem.
   i uczestnikach sceny, ale wyłącznie jako kontekst pomocniczy — nigdy nie
   cytuj ich jako dialogu i nie wymyślaj na ich podstawie wydarzeń, których
   nie ma w transkrypcji.
+- Linie `[CZAT HH:MM:SS] …` pochodzą z Foundry: wiadomości z czatu, rzuty
+  (z wynikiem i ST), aktywna scena, początek i koniec walki, postacie
+  padające na 0 PW, handouty i muzyka. To pewne źródło nazw, lokacji
+  i przebiegu walki, ale nie dialog — nie cytuj ich. Szepty (`szept do: …`)
+  były prywatne: nie przypisuj ich wiedzy całej drużynie.
