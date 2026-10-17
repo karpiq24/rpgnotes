@@ -15,6 +15,10 @@ services:
       - SYS_PTRACE
     security_opt:
       - seccomp=unconfined
+      # SELinux hosts (Fedora): bind-mounted home dirs are labeled user_home_t,
+      # which container_t may not read. Disabling labeling for this container
+      # avoids relabeling the host dirs with :z (no-op on non-SELinux hosts).
+      - label=disable
     ipc: host
     volumes:
       - ${DOWNLOADS_DIR:-./Downloads}:/data/downloads
@@ -24,9 +28,9 @@ services:
       - ./prompts:/app/prompts:ro
       - ./template.md:/app/template.md:ro
       - ./discord_speaker_mapping.json:/app/discord_speaker_mapping.json:ro
-      # Session screenshots (Plan E). Unset in .env falls back to a harmless
-      # repo-local dir.
-      - ${SCREENSHOTS_DIR:-./screens_session}:/data/screenshots
+      # Session screenshots. Unset in .env falls back to the capture script's
+      # default output dir.
+      - ${SCREENSHOTS_DIR:-./temp/screenshots}:/data/screenshots
       # Curated ASR-misspelling table living in the OotD repo; /dev/null when unset
       # (reads as an empty file inside the container).
       - ${PHONETIC_CORRECTIONS_FILE:-/dev/null}:/app/phonetic_corrections.md:ro
@@ -38,6 +42,7 @@ services:
       # that write to ~/.cache (HuggingFace, etc.) land on writable host disk.
       HOME: /data/temp
       DOWNLOADS_DIR: /data/downloads
+      HOST_DOWNLOADS_DIR: ${DOWNLOADS_DIR:-./Downloads}
       OUTPUT_DIR: /data/output
       CONTEXT_DIR: /data/context
       TEMP_DIR: /data/temp
@@ -56,21 +61,27 @@ services:
       TEMPLATE_FILE: /app/template.md
       # Tunables passed through from .env (defaults mirror src/rpgnotes/config.py)
       SUMMARY_CHUNK_LINES: ${SUMMARY_CHUNK_LINES:-800}
-      SUMMARY_TEMPERATURE: ${SUMMARY_TEMPERATURE:-0.3}
-      SUMMARY_POLISH_PASS: ${SUMMARY_POLISH_PASS:-true}
-      SUMMARY_POLISH_TEMPERATURE: ${SUMMARY_POLISH_TEMPERATURE:-0.7}
+      # Empty = model default (recommended for Gemini 3+).
+      SUMMARY_TEMPERATURE: ${SUMMARY_TEMPERATURE:-}
+      SUMMARY_POLISH_PASS: ${SUMMARY_POLISH_PASS:-false}
+      SUMMARY_POLISH_TEMPERATURE: ${SUMMARY_POLISH_TEMPERATURE:-}
       TIMELINE_RECENT_SESSIONS: ${TIMELINE_RECENT_SESSIONS:-10}
       VISUAL_DEDUPE: ${VISUAL_DEDUPE:-true}
       VISUAL_UPLOAD_MAX_DIM: ${VISUAL_UPLOAD_MAX_DIM:-1536}
       VISUAL_UPLOAD_JPEG_QUALITY: ${VISUAL_UPLOAD_JPEG_QUALITY:-80}
       VISUAL_CROP: ${VISUAL_CROP:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_PRO_MODEL: ${GEMINI_PRO_MODEL:-gemini-3.1-pro-preview}
-      GEMINI_FLASH_MODEL: ${GEMINI_FLASH_MODEL:-gemini-3-flash-preview}
+      GEMINI_PRO_MODEL: ${GEMINI_PRO_MODEL:-gemini-4-argon}
+      GEMINI_FLASH_MODEL: ${GEMINI_FLASH_MODEL:-gemini-3.8-flash}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
+      GEMINI_SERVICE_TIER: ${GEMINI_SERVICE_TIER:-flex}
+      VALIDATION_MAX_PASSES: ${VALIDATION_MAX_PASSES:-1}
       WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-float16}
       WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-pl}
+      WHISPER_VAD: ${WHISPER_VAD:-true}
+      WHISPER_HOTWORDS_RECENT_SESSIONS: ${WHISPER_HOTWORDS_RECENT_SESSIONS:-3}
       # ROCm workaround for HIP page-fault between successive transcribe() calls
       # on RDNA2/RDNA4 (CT2 issue OpenNMT/CTranslate2#2012). Forces the CUB caching
       # allocator instead of the default async allocator.

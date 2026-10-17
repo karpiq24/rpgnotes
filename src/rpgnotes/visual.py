@@ -9,14 +9,16 @@ import time
 from pathlib import Path
 from typing import Any
 
-import google.generativeai as genai
 from pydantic import BaseModel
 
-from .summarize.gemini import _call_with_retry
+from . import llm
 
 log = logging.getLogger("rpgnotes")
 
 SIGNATURE_SIZE = 64  # downscale side used for dedupe signatures
+# Frames taken this long before the Craig recording started belong to an
+# earlier session (setup before the recording is normal; a week is not).
+STALE_FRAME_SECS = 3600
 
 _SHOT_RE = re.compile(r"^shot_(\d+)(_key)?\.png$")
 
@@ -237,6 +239,17 @@ def caption_screenshots(
     if recording_start is not None:
         session_start = recording_start
         log.info("Using Craig recording start (%d) as the visual offset anchor.", session_start)
+        fresh = [shot for shot in shots if shot[1] >= recording_start - STALE_FRAME_SECS]
+        if len(fresh) < len(shots):
+            log.warning(
+                "Skipping %d screenshot(s) taken over %d min before the recording started "
+                "(left over from an earlier session?).",
+                len(shots) - len(fresh),
+                STALE_FRAME_SECS // 60,
+            )
+        shots = fresh
+        if not shots:
+            return []
     else:
         loaded_start = load_session_start(screenshots_dir)
         if loaded_start is None:
@@ -253,7 +266,6 @@ def caption_screenshots(
         shots = _dedupe_frames(shots, dedupe_threshold, crop)
 
     system_prompt = "\n\n".join(part.strip() for part in (caption_prompt, glossary) if part.strip())
-    model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
 
     entries: list[VisualEntry] = []
     made_api_call = False
@@ -274,15 +286,15 @@ def caption_screenshots(
                 path, max_dim=upload_max_dim, jpeg_quality=upload_jpeg_quality, crop=crop
             )
             try:
-                response = _call_with_retry(
-                    model.generate_content,
-                    [
-                        {"mime_type": mime_type, "data": data},
+                caption = llm.generate_text(
+                    model=model_name,
+                    contents=[
+                        llm.image_part(data, mime_type),
                         "Opisz ten zrzut ekranu z sesji zgodnie z instrukcją.",
                     ],
-                )
+                    system_instruction=system_prompt,
+                ).strip()
                 made_api_call = True
-                caption = str(response.text).strip()
             except Exception as e:
                 log.warning("Captioning failed for %s: %s. Skipping frame.", path.name, e)
                 continue

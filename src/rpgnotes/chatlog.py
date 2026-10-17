@@ -3,32 +3,37 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import logging
+import os
 import re
 from pathlib import Path
+from typing import NamedTuple
 
-from .helpers import get_newest_file, prettify_json
+from .helpers import prettify_json
 
 log = logging.getLogger("rpgnotes")
 
 
-def process_chat_log(
-    source_dir: Path,
-    assets_base_dir: Path,
-) -> tuple[int | None, _dt.date | None]:
-    """Find the newest ``session*.json``, extract number+date, copy prettified into assets."""
-    newest_chat_log = get_newest_file(source_dir, "session*.json")
-    if not newest_chat_log:
-        log.error("No session chat log found (e.g., 'session53.json').")
-        return None, None
+class ChatLogInfo(NamedTuple):
+    path: Path
+    session_number: int
+    session_date: _dt.date | None
 
+
+def find_chat_log(source_dir: Path) -> ChatLogInfo | None:
+    """The newest ``session<NN>.json`` with its session number and archive date.
+
+    No side effects, so the menu can call it to show what it found.
+    """
+    chat_logs = [
+        path for path in source_dir.glob("session*.json") if re.search(r"session\d+", path.name)
+    ]
+    if not chat_logs:
+        return None
+    newest_chat_log = max(chat_logs, key=os.path.getmtime)
     match = re.search(r"session(\d+)", newest_chat_log.name)
-    if not match:
-        log.error("Could not extract session number from filename: %s", newest_chat_log.name)
-        return None, None
+    assert match is not None
 
-    session_number = int(match.group(1))
     session_date: _dt.date | None = None
-
     try:
         with newest_chat_log.open(encoding="utf-8") as f:
             data = json.load(f)
@@ -37,6 +42,19 @@ def process_chat_log(
             session_date = _dt.datetime.strptime(date_str, "%Y-%m-%d").date()
     except (json.JSONDecodeError, ValueError) as e:
         log.warning("Could not extract date from chat log %s: %s.", newest_chat_log.name, e)
+    return ChatLogInfo(newest_chat_log, int(match.group(1)), session_date)
+
+
+def process_chat_log(
+    source_dir: Path,
+    assets_base_dir: Path,
+) -> tuple[int | None, _dt.date | None]:
+    """Find the newest ``session*.json``, extract number+date, copy prettified into assets."""
+    info = find_chat_log(source_dir)
+    if info is None:
+        log.error("No session chat log (e.g., 'session53.json') found in %s.", source_dir)
+        return None, None
+    newest_chat_log, session_number, session_date = info
 
     session_assets_dir = assets_base_dir / f"{session_number:03d}"
     session_assets_dir.mkdir(parents=True, exist_ok=True)

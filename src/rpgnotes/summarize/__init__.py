@@ -1,7 +1,6 @@
 from .chunker import split_transcript
 from .gemini import (
     generate_quotes,
-    generate_summary,
     generate_summary_chunked,
     validate_summary,
     verify_quotes,
@@ -16,7 +15,6 @@ __all__ = [
     "ValidationReport",
     "build_session_glossary",
     "generate_quotes",
-    "generate_summary",
     "generate_summary_chunked",
     "split_transcript",
     "validate_summary",

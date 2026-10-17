@@ -52,21 +52,25 @@ def test_combine_drops_hallucinations(tmp_path: Path) -> None:
     assert [s["text"] for s in combined] == ["Atakuję."]
 
 
-def test_combine_drops_low_confidence_and_silence(tmp_path: Path) -> None:
+def test_combine_drops_only_silent_low_confidence_windows(tmp_path: Path) -> None:
     transcripts, assets, mapping = _setup(tmp_path)
     _write_segments(
         transcripts / "1-karpiq24_0001.json",
         [
-            {"start": 1.0, "end": 2.0, "text": "Niski logprob.", "avg_logprob": -1.5},
-            {"start": 2.0, "end": 3.0, "text": "Sama cisza.", "no_speech_prob": 0.9},
-            {"start": 3.0, "end": 4.0, "text": "..."},
-            {"start": 4.0, "end": 5.0, "text": "Dobre."},
+            # Whisper's rule: dropped only when BOTH silent-looking and low-confidence.
+            {"start": 1.0, "end": 2.0, "text": "Cisza.", "avg_logprob": -1.5, "no_speech_prob": 0.9},
+            # Hard-to-decode speech (rare names) is kept.
+            {"start": 2.0, "end": 3.0, "text": "Kentimane.", "avg_logprob": -1.5, "no_speech_prob": 0.1},
+            {"start": 3.0, "end": 4.0, "text": "Mówię cicho.", "avg_logprob": -0.3, "no_speech_prob": 0.9},
+            {"start": 4.0, "end": 5.0, "text": "tak tak tak tak", "compression_ratio": 3.1},
+            {"start": 5.0, "end": 6.0, "text": "..."},
+            {"start": 6.0, "end": 7.0, "text": "Dobre."},
         ],
     )
 
     combine_transcriptions(1, transcripts, assets, mapping)
     combined = json.loads((assets / "001" / "transcript.json").read_text(encoding="utf-8"))
-    assert [s["text"] for s in combined] == ["Dobre."]
+    assert [s["text"] for s in combined] == ["Kentimane.", "Mówię cicho.", "Dobre."]
 
 
 def test_combine_dedupes_consecutive_identical_text_from_same_speaker(tmp_path: Path) -> None:

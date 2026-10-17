@@ -3,16 +3,15 @@
 Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a validated, AI-drafted session recap (`draft0.md`), which OotD assembles into the final session note after the refine pass.
 
 - **Transcription**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2 — AMD ROCm and NVIDIA CUDA both work.
-- **Summarization**: Google Gemini (via `google-generativeai` + `instructor` for structured output).
-- **Run**: a single `./run.sh` after dropping files into `DOWNLOADS_DIR`.
+- **Summarization**: Google Gemini (`gemini-4-argon` by default) via the `google-genai` SDK, with native structured output.
+- **Run**: `./run.sh capture` during the game, `./run.sh` after it.
 
 ## Quick start
 
 ```bash
 cp .env.example .env
 $EDITOR .env                    # set GEMINI_API_KEY at minimum
-docker compose build
-./run.sh                        # processes the newest session in DOWNLOADS_DIR
+./run.sh                        # first run builds the image, then shows the menu
 ```
 
 That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/assets/sessions/<NNN>/` — point `OUTPUT_DIR` at an OotD checkout's `content/` directory and they're immediately visible there, no copy step needed. The final `Sesja XX - <title>.md` note is rendered by OotD after refinement (the manual workflow still renders it locally into `OUTPUT_DIR/01-Sessions/`).
@@ -21,18 +20,46 @@ That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/a
 
 | Command | What it does |
 |---|---|
-| `./run.sh` | Full workflow: transcribe + Gemini summary/quotes for the newest session. |
+| `./run.sh capture` | During the game: Foundry screenshots every 10 min (runs on the host, `Ctrl+C` to stop). |
+| `./run.sh` | After the game: shows the session it found and what's done, then a menu. `Enter` processes it. |
+| `./run.sh status` | Only the status screen, then exit. |
+| `./run.sh full` | Transcribe + Gemini draft/quotes, no questions (also the default when not in a terminal). |
 | `./run.sh transcribe` | Transcription only (no Gemini calls). |
 | `./run.sh manual` | Skip Gemini; paste summary/details/quotes JSON manually (renders the final note locally). |
-| `./run.sh --menu` | Legacy interactive menu (same as old `main.py`). |
-| `./run.sh --clean-temp` | Wipe `TEMP_DIR` first. |
+| `--fresh` | With any command: redo the session from scratch instead of resuming (re-transcribes, calls Gemini again). |
+
+`./run.sh` checks `.env` and the mounted folders first, creates the ones this repo owns, and rebuilds the image quietly (log in `temp/build.log`).
 
 ## Day-to-day workflow
 
-1. After the session, drop two files into `DOWNLOADS_DIR`:
-   - `craig-*.flac.zip` — Craig bot audio archive
-   - `session<NN>.json` — your chat log (the script extracts the session number and date from this file)
-2. Run `./run.sh`. The pipeline is resumable: re-running skips steps that already produced output.
+1. **Before the game:** `./run.sh capture` and leave it running. Frames of the previous game move to `temp/screenshots/previous/`.
+2. **After the game:** drop the Craig `craig-*.flac.zip` and the Foundry `session<NN>.json` into `DOWNLOADS_DIR`, then `./run.sh` and press `Enter`.
+
+The status screen looks like this:
+
+```
+════════════════════════════════════════════════════════════
+  Sesja 81 · 2026-10-12
+════════════════════════════════════════════════════════════
+  Chat log     session81.json
+  Audio        craig-abc.flac.zip, 412 MB
+  Screenshots  37 frames
+  Gemini       gemini-4-argon, flex tier
+
+  In the wiki  · transcript   · draft0.md   · quotes
+  Note         temp holds work for session 80; it is cleared when you start
+
+  [1] Process session 81: transcribe + AI notes   (Enter)
+  [2] Transcribe only (no Gemini cost)
+  [m] Enter notes manually (paste summary and JSON)
+  [q] Quit
+```
+
+Runs are resumable: stop with `Ctrl+C` at any point and the next run continues where it left off (the menu then says *Continue* and offers *Start over*). Work in `TEMP_DIR` is tagged with its session number (`temp/session.txt`) and cleared automatically when a new session comes in, so audio of the previous session can never leak into the next one; screenshots, logs and caches survive the clearing. The session's Craig zip is moved to `DOWNLOADS_DIR/_processed/` and its name recorded in `audio_source.txt`, so *Start over* reuses exactly that zip.
+
+## Podman / Fedora
+
+`./run.sh` also works where `docker` is Podman (Fedora): under **rootless** Podman the entrypoint runs as container root — which *is* your host user — instead of dropping to `HOST_UID` (that would map to a subordinate uid and re-own the bind mounts, including an OotD `OUTPUT_DIR`). The compose file sets `label=disable` so SELinux lets the container read your home-dir bind mounts without relabeling them. Rootless Podman also refuses missing bind-mount sources; `./run.sh` creates the repo-owned ones and names any `.env` path that doesn't exist.
 
 ## AMD GPU support
 
@@ -65,11 +92,17 @@ All knobs live in `.env`. See [.env.example](.env.example) for the full list.
 Key summarization knobs (chunked map-reduce summarizer):
 
 - `SUMMARY_CHUNK_LINES` — transcript chunk size in lines (default `800`); chunks break only at speaker-turn boundaries.
-- `SUMMARY_TEMPERATURE` — temperature for the factual per-chunk summaries (default `0.3`).
-- `SUMMARY_POLISH_PASS` — enable the final prose-polish pass that may improve style but changes no facts, names, or event order (default `true`).
-- `SUMMARY_POLISH_TEMPERATURE` — temperature for the polish pass (default `0.7`).
+- `SUMMARY_TEMPERATURE` — temperature for the factual per-chunk summaries (default: empty = the model's default; Google recommends the default for Gemini 3+, lower values can cause looping).
+- `SUMMARY_POLISH_PASS` — enable the final prose-polish pass that may improve style but changes no facts, names, or event order (default `false`: OotD's refine pass rewrites the prose anyway, and this is the most output-heavy call).
+- `SUMMARY_POLISH_TEMPERATURE` — temperature for the polish pass (default: empty = model default).
+- `GEMINI_PRO_MODEL` / `GEMINI_FLASH_MODEL` — `gemini-4-argon` (summary, polish, validation) and `gemini-3.8-flash` (quotes, screenshot captions).
+- `GEMINI_THINKING_LEVEL` — thinking level for the summary/polish/validation calls: `low`, `medium` or `high` (default: empty = model default, `medium` on Argon; thinking is billed as output).
+- `GEMINI_SERVICE_TIER` — `flex` (default; half price, each call may queue for minutes, falls back to `standard` when Flex is at capacity) or `standard`.
+- `VALIDATION_MAX_PASSES` — validate → auto-fix rounds (default `1`; each round re-reads the whole transcript).
+- Every Gemini call logs its input (cached), output and thinking tokens, and the run ends with per-model totals — check `cached` to confirm implicit caching kicks in across chunks.
 - `STYLE_RULES_FILE` / `ANTI_HALLUCINATION_FILE` / `VALIDATION_PROMPT_FILE` — the composable prompt parts (`prompts/style_rules.txt`, `prompts/anti_hallucination.txt`, `prompts/validation.txt`).
-- `PHONETIC_CORRECTIONS_FILE` — ASR-error corrections table embedded into the per-session glossary (default `../OotD/.agent/skills/rpg-summarizer/resources/phonetic_corrections.md`; skipped gracefully if missing).
+- `PHONETIC_CORRECTIONS_FILE` — ASR-error corrections table embedded into the per-session glossary (default `../OotD/.agents/skills/rpg-summarizer/resources/phonetic_corrections.md`; skipped gracefully if missing).
+- Every chunk call gets the full session glossary (all canonical entity names + aliases + phonetic corrections) **and** the campaign context in its system prompt, plus the tail of the previous chunk for continuity. The glossary is deliberately not filtered by what the transcript contains — the names worth listing are exactly the ones the ASR mangles. The validation pass gets the glossary too, so it never "corrects" a canonical name back to its ASR spelling.
 - `CONTEXT_DIR` — campaign context (entity wiki pages, `Campaign_Context.md`, `Timeline.md`) loaded at runtime; campaign facts are **not** baked into the prompts. **Recommended**: point this at an OotD checkout's `content/` directory (e.g. `CONTEXT_DIR=../OotD/content`) rather than copying context into rpgnotes — its layout (`02-People/`, `03-Locations/`, `04-Items-and-Loot/`, `05-Lore/`, plus `Campaign_Context.md`/`Timeline.md` at the root) is exactly what `build_session_glossary`/`load_context_files` expect, so campaign state is read live from the single source of truth instead of drifting out of sync.
 - `TIMELINE_RECENT_SESSIONS` — only the last N `## Sesja` sections of `Timeline.md` are sent as AI context (default `10`; `0` = whole file). The full timeline grows unbounded and ancient sessions add nothing but tokens.
 
@@ -113,26 +146,33 @@ Capture the VTT screen during the session and the pipeline will interleave Gemin
 **Before the session starts** (alongside starting Craig), run on the host:
 
 ```bash
-python3 scripts/capture_session.py
+./run.sh capture        # = python3 scripts/capture_session.py
 ```
 
-Pick the monitor showing the VTT (never the one with Discord — only the selected region is ever written to disk), leave it running, stop with `Ctrl+C` after the session. Frames land in `DOWNLOADS_DIR/screens_session/` as `shot_<unix_ts>.png` plus a `session_start.txt` timestamp; frames nearly identical to the previous kept one are dropped automatically.
+Pick the monitor showing the VTT (never the one with Discord — only the selected region is ever written to disk), leave it running, stop with `Ctrl+C` after the session.
+
+To skip the picker, set `CAPTURE_MONITOR` (connector name like `DP-1`, or an EDID model substring like `LG`, so it survives moving cables) and optionally `CAPTURE_CROP=WxH+X+Y` in `.env` — a sub-region in that monitor's own pixels, e.g. only the Foundry page inside a maximized Firefox, without desktop panels, browser toolbars, bookmarks or the vertical-tabs column. Then a bare `./run.sh capture` needs no input. Measure the crop once from a `--once` test frame, and re-measure if the panel or browser layout changes (Firefox fullscreen/F11 hides the toolbars, so the crop would then cut into Foundry). Frames land in `SCREENSHOTS_DIR` (default `TEMP_DIR/screenshots`, i.e. `./temp/screenshots/`) as `shot_<unix_ts>.png` plus a `session_start.txt` timestamp; frames nearly identical to the previous kept one are dropped automatically. Restarting within 12 h resumes the same capture; a capture started later moves the old frames to `previous/` (one game kept as backup; `--fresh` forces this). At ingestion, frames taken over an hour before the Craig recording started are skipped as leftovers.
 
 Flags: `--interval N` (seconds between capture attempts, default 600 — D&D scenes change slowly and each kept frame costs a Gemini caption call, so 10 minutes is plenty; near-identical frames are still dropped immediately), `--monitor DP-1` / `--region WxH+X+Y` (skip the interactive picker), `--output-dir PATH`, `--dedupe-threshold F` (mean 0-255 gray diff, default 4.0), `--once` (single test frame).
 
-Backends are auto-detected: `grim`+`slurp` (wlroots Wayland), the XDG desktop portal (GNOME Wayland; needs ImageMagick + `python3-dbus`/`python3-gi`), or `maim`/`scrot`/ImageMagick (X11). On GNOME Wayland, run this once so the portal stops asking for permission:
+Backends are auto-detected: `grim`+`slurp` (wlroots Wayland), Spectacle (KDE Plasma, e.g. Fedora KDE — needs `spectacle` + ImageMagick, both preinstalled or `sudo dnf install spectacle ImageMagick`; no permission prompt, monitors listed via `kscreen-doctor`, works with mixed display scaling), the XDG desktop portal (GNOME Wayland; needs ImageMagick + `python3-dbus`/`python3-gi`), or `maim`/`scrot`/ImageMagick (X11). On GNOME Wayland, run this once so the portal stops asking for permission:
 
 ```bash
 python3 scripts/capture_session.py --grant-portal-permission
 ```
 
-(The GNOME portal briefly writes a full-desktop frame to your Pictures dir; the script crops it to your region and deletes the original immediately. GNOME may flash the screen on each capture — that's normal.)
+(The GNOME portal and Spectacle briefly write a full-desktop frame — GNOME to your Pictures dir, Spectacle to a private temp dir; the script crops it to your region and deletes the original immediately. GNOME may flash the screen on each capture — that's normal.)
 
-**Ingestion** is enabled by setting `SCREENSHOTS_DIR` in `.env` (e.g. `./Downloads/screens_session`); leave it empty and the pipeline behaves exactly as before. Each kept frame gets one Gemini Flash multimodal caption (Polish, glossary-anchored; model via `VISUAL_CAPTION_MODEL`, defaults to `GEMINI_FLASH_MODEL`; per-frame captions cached in `TEMP_DIR`, resumable). Outputs land in `OUTPUT_DIR/assets/sessions/<NNN>/`: `visual_log.json` (`[{offset_secs, caption, path, is_key}]` — files named `shot_<ts>_key.png` are flagged as key moments); the captions are merged into `transcript_enriched.txt` (see the enriched transcript section), which is fed to the summarizer. `VISUAL_DEDUPE=false` disables the ingestion-side re-dedupe.
+**Ingestion** is enabled by setting `SCREENSHOTS_DIR` in `.env` (e.g. `./temp/screenshots`, where the capture script writes by default; clearing the temp dir at startup keeps this folder); leave it empty and the pipeline behaves exactly as before. Each kept frame gets one Gemini Flash multimodal caption (Polish, glossary-anchored; model via `VISUAL_CAPTION_MODEL`, defaults to `GEMINI_FLASH_MODEL`; per-frame captions cached in `TEMP_DIR`, resumable). Outputs land in `OUTPUT_DIR/assets/sessions/<NNN>/`: `visual_log.json` (`[{offset_secs, caption, path, is_key}]` — files named `shot_<ts>_key.png` are flagged as key moments); the captions are merged into `transcript_enriched.txt` (see the enriched transcript section), which is fed to the summarizer. `VISUAL_DEDUPE=false` disables the ingestion-side re-dedupe.
 
 Offsets are anchored to Craig's recording start (`recording_start.txt`, parsed from the audio zip's `info.txt`) when available — this survives starting the capture script earlier or later than the recording. `session_start.txt` is only the fallback anchor. `VISUAL_CROP=WxH+X+Y` cuts system/browser chrome (dock, tabs, clock) out of both the AI upload and the dedupe signature; disk originals are never modified.
 
+How transcription works: each speaker's Craig track is run through Silero VAD, the speech regions are grouped into ≤30 s clips on the **original** timeline, and each clip is decoded by faster-whisper with word timestamps. Segments are split at pauses longer than 1.5 s, so speaker turns interleave at the right moments in `transcript.txt`. (faster-whisper's own `vad_filter` concatenates all speech into one stream; segment timestamps then smear across the removed silence — a 3-word line could span 7 minutes and land far out of order.) The combine step drops a segment only when Whisper's own rule says the window was silent (no-speech AND low confidence), plus repetition loops and known subtitle hallucinations, and logs how many words each reason removed.
+
 Key Whisper knobs:
+
+- `WHISPER_PROMPT_FILE` — **hotwords**, not a free-form prompt: the names in `prompts/whisper.txt` are prepended to *every* decode window (an `initial_prompt` only reaches the first 30 s window when previous-text conditioning is off, and is cut to its last ~223 tokens). The budget is ~150 tokens (~25–30 names), so list only names the ASR gets wrong; the startup log prints the packed list.
+- `WHISPER_HOTWORDS_RECENT_SESSIONS` — names linked in the last N `## Sesja` sections of `Timeline.md` fill the rest of the hotword budget, most-linked first (default `3`; `0` = file only).
 
 - `WHISPER_MODEL` — `large-v3` by default; smaller variants (`small`, `medium`, `distil-large-v3`) are faster and lighter.
 - `WHISPER_DEVICE` — `cuda` for GPU (NVIDIA or AMD), `cpu` to force CPU.
@@ -143,21 +183,24 @@ Key Whisper knobs:
 
 ```
 src/rpgnotes/
-├── cli.py             argparse → pipeline functions
+├── cli.py             commands + the interactive menu
+├── status.py          what the menu shows: session found, inputs, progress
 ├── config.py          pydantic-settings, .env-driven
 ├── pipeline.py        full / transcription / manual workflows
 ├── chatlog.py         find newest session*.json, extract number+date
-├── audio.py           unzip craig-*.flac.zip → per-speaker FLACs
+├── audio.py           unzip the session's craig-*.flac.zip → per-speaker FLACs
 ├── speakers.py        Discord username → character name mapping
 ├── hallucination.py   blocklist of common Whisper subtitle hallucinations
 ├── helpers.py         small filesystem/JSON utilities
+├── llm.py             google-genai client: text + structured calls, retries
 ├── chatevents.py      distill Foundry chat log into timeline-anchored events
 ├── visual.py          screenshot dedupe/captioning ([VISUAL] entries)
 ├── enrich.py          merge speech + [VISUAL] + [CZAT] into one transcript
 ├── template.py        render template.md → final markdown (manual workflow)
 ├── transcribe/
 │   ├── base.py        TranscriberProtocol + Segment shape
-│   ├── faster.py      faster-whisper backend
+│   ├── faster.py      faster-whisper backend (VAD clips, word-level splits)
+│   ├── hotwords.py    Whisper hotwords: file + recent Timeline names
 │   ├── runner.py      skip-existing iteration over a FLAC dir
 │   └── combine.py     merge per-speaker JSONs into a sorted transcript
 └── summarize/
@@ -165,7 +208,7 @@ src/rpgnotes/
     ├── chunker.py     split transcript into ~800-line chunks at speaker turns
     ├── glossary.py    session glossary from context entities + phonetic fixes
     └── gemini.py      chunked map-reduce summary, validation pass,
-                       quotes extraction, quote verification
+                       quotes extraction, quote + speaker verification
 ```
 
 ## Development
@@ -181,4 +224,4 @@ ruff check .
 
 - Delete `models/large-v3.pt` — that file is the openai-whisper format. faster-whisper redownloads `Systran/faster-whisper-large-v3` (CT2 format) into the same `models/` directory on first run.
 - `requirements.txt` and `requirements_amd.txt` are gone; everything lives in `pyproject.toml`.
-- The interactive menu is still available via `./run.sh --menu`. The new default is non-interactive.
+- `./run.sh` in a terminal shows the menu; `./run.sh full` runs without questions.

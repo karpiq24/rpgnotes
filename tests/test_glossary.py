@@ -32,13 +32,13 @@ def test_glossary_includes_names_and_aliases(tmp_path: Path) -> None:
     assert "index" not in glossary
 
 
-def test_glossary_filters_by_transcript(tmp_path: Path) -> None:
+def test_glossary_lists_every_name_regardless_of_transcript(tmp_path: Path) -> None:
+    # Mangled ASR forms ("Akastus", "Metros") must still get their canonical
+    # entry — those are exactly the names the glossary exists to fix.
     ctx = _make_context(tmp_path)
-    transcript = "[Orestes]\nWidzę Sybolkoraxa na horyzoncie!"
-    glossary = build_session_glossary(ctx, transcript_content=transcript)
-    assert "Sybolkorax" in glossary  # inflected form matched by prefix
-    assert "Acastus" not in glossary
-    assert "Mytros" not in glossary
+    glossary = build_session_glossary(ctx)
+    for name in ("Sybolkorax", "Acastus", "Mytros"):
+        assert name in glossary
 
 
 def test_glossary_includes_phonetic_corrections(tmp_path: Path) -> None:
@@ -62,3 +62,10 @@ def test_glossary_works_with_only_phonetic_file(tmp_path: Path) -> None:
     glossary = build_session_glossary(tmp_path / "nope", phonetic_corrections_file=phonetic)
     assert "Versir" in glossary
     assert glossary.startswith("# Glosariusz sesji")
+
+
+def test_glossary_without_aliases_lists_names_only(tmp_path: Path) -> None:
+    ctx = _make_context(tmp_path)
+    glossary = build_session_glossary(ctx, include_aliases=False)
+    assert "Sybolkorax" in glossary
+    assert "Sybol Korax" not in glossary

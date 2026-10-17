@@ -16,28 +16,21 @@ def _make_transcript(turns: int, lines_per_turn: int) -> str:
     return "\n".join(out)
 
 
-def _fake_genai(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Fake genai whose model responds with NARRATIVE/ROLLING blocks in call order."""
+def _fake_llm(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Fake llm.generate_text responding with NARRATIVE/ROLLING blocks in call order."""
     counter = {"n": 0}
 
-    def generate_content(*_args: object, **_kwargs: object) -> MagicMock:
+    def generate_text(**_kwargs: object) -> str:
         counter["n"] += 1
         n = counter["n"]
-        response = MagicMock()
-        response.text = (
+        return (
             f"NARRATIVE:\n### Sekcja {n}\n\nTreść fragmentu {n}.\n\n"
             f"ROLLING_SUMMARY:\n- stan po fragmencie {n}"
         )
-        return response
 
-    fake_model = MagicMock()
-    fake_model.generate_content.side_effect = generate_content
-
-    fake_genai = MagicMock()
-    fake_genai.GenerativeModel.return_value = fake_model
-    fake_genai.GenerationConfig.return_value = MagicMock()
-    monkeypatch.setattr(gemini, "genai", fake_genai)
-    return fake_model
+    fake = MagicMock(side_effect=generate_text)
+    monkeypatch.setattr(gemini.llm, "generate_text", fake)
+    return fake
 
 
 def test_parse_chunk_response_extracts_blocks() -> None:
@@ -56,7 +49,7 @@ def test_parse_chunk_response_falls_back_without_markers() -> None:
 def test_chunked_summary_concatenates_in_order(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    fake_model = _fake_genai(monkeypatch)
+    fake = _fake_llm(monkeypatch)
     transcript = _make_transcript(turns=30, lines_per_turn=10)
 
     summary, rollings = gemini.generate_summary_chunked(
@@ -73,7 +66,7 @@ def test_chunked_summary_concatenates_in_order(
         polish_pass=False,
     )
 
-    n_chunks = fake_model.generate_content.call_count
+    n_chunks = fake.call_count
     assert n_chunks > 1
     # Narrative blocks appear in strict call order.
     positions = [summary.index(f"Treść fragmentu {i}.") for i in range(1, n_chunks + 1)]
@@ -87,7 +80,7 @@ def test_chunked_summary_concatenates_in_order(
 def test_chunked_summary_passes_rolling_summary_forward(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    fake_model = _fake_genai(monkeypatch)
+    fake = _fake_llm(monkeypatch)
     transcript = _make_transcript(turns=30, lines_per_turn=10)
 
     gemini.generate_summary_chunked(
@@ -104,16 +97,47 @@ def test_chunked_summary_passes_rolling_summary_forward(
         polish_pass=False,
     )
 
-    second_call_args = fake_model.generate_content.call_args_list[1][0][0]
-    payload = second_call_args[0]["parts"][0]
+    second_call = fake.call_args_list[1].kwargs
+    payload = second_call["contents"]
     assert "ROLLING_SUMMARY" in payload
     assert "stan po fragmencie 1" in payload
+    # The previous chunk's tail rides along as context.
+    assert "KONIEC POPRZEDNIEGO FRAGMENTU" in payload
+    assert "line 9-9" in payload
+
+
+def test_chunked_summary_sends_campaign_context_with_every_chunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = _fake_llm(monkeypatch)
+    ctx = tmp_path / "ctx"
+    ctx.mkdir()
+    (ctx / "Campaign_Context.md").write_text("KONTEKST KAMPANII XYZ", encoding="utf-8")
+
+    gemini.generate_summary_chunked(
+        transcript_content=_make_transcript(turns=30, lines_per_turn=10),
+        style_rules="STYL",
+        anti_hallucination="ZAKAZY",
+        glossary="GLOSARIUSZ",
+        model_name="gemini-pro",
+        context_dir=ctx,
+        temp_dir=tmp_path / "temp",
+        session_number=7,
+        cache_file=tmp_path / "summary.txt",
+        chunk_lines=100,
+        polish_pass=False,
+    )
+
+    assert fake.call_count > 1
+    for call in fake.call_args_list:
+        assert "KONTEKST KAMPANII XYZ" in call.kwargs["system_instruction"]
+        assert "GLOSARIUSZ" in call.kwargs["system_instruction"]
 
 
 def test_chunked_summary_resumes_from_chunk_caches(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    fake_model = _fake_genai(monkeypatch)
+    fake = _fake_llm(monkeypatch)
     transcript = _make_transcript(turns=30, lines_per_turn=10)
     temp_dir = tmp_path / "temp"
     kwargs = dict(
@@ -130,18 +154,18 @@ def test_chunked_summary_resumes_from_chunk_caches(
     )
 
     first, _ = gemini.generate_summary_chunked(cache_file=tmp_path / "summary.txt", **kwargs)  # type: ignore[arg-type]
-    calls_first_run = fake_model.generate_content.call_count
+    calls_first_run = fake.call_count
 
     # Re-run with a missing final cache: chunk caches must be reused, no new calls.
     second, _ = gemini.generate_summary_chunked(cache_file=tmp_path / "summary2.txt", **kwargs)  # type: ignore[arg-type]
-    assert fake_model.generate_content.call_count == calls_first_run
+    assert fake.call_count == calls_first_run
     assert second == first
 
 
 def test_chunked_summary_returns_final_cache(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(gemini, "genai", MagicMock())
+    monkeypatch.setattr(gemini.llm, "generate_text", MagicMock())
     cache = tmp_path / "summary.txt"
     cache.write_text("CACHED SUMMARY", encoding="utf-8")
 
@@ -161,24 +185,13 @@ def test_chunked_summary_returns_final_cache(
 
 
 def test_polish_pass_runs_when_enabled(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    responses = iter(
-        [
+    fake = MagicMock(
+        side_effect=[
             "NARRATIVE:\n### Sekcja\n\nTreść.\n\nROLLING_SUMMARY:\n- stan",
             "WYPOLEROWANE PODSUMOWANIE",
         ]
     )
-
-    def generate_content(*_args: object, **_kwargs: object) -> MagicMock:
-        response = MagicMock()
-        response.text = next(responses)
-        return response
-
-    fake_model = MagicMock()
-    fake_model.generate_content.side_effect = generate_content
-    fake_genai = MagicMock()
-    fake_genai.GenerativeModel.return_value = fake_model
-    fake_genai.GenerationConfig.return_value = MagicMock()
-    monkeypatch.setattr(gemini, "genai", fake_genai)
+    monkeypatch.setattr(gemini.llm, "generate_text", fake)
 
     summary, _ = gemini.generate_summary_chunked(
         transcript_content="[A]\nkrótki transkrypt",
@@ -193,4 +206,4 @@ def test_polish_pass_runs_when_enabled(monkeypatch: pytest.MonkeyPatch, tmp_path
         polish_pass=True,
     )
     assert summary == "WYPOLEROWANE PODSUMOWANIE"
-    assert fake_model.generate_content.call_count == 2
+    assert fake.call_count == 2

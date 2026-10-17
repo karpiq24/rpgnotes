@@ -12,11 +12,17 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        # A blank `KEY=` in .env (or docker-compose's `${KEY:-}`) means "use the
+        # default" instead of failing to parse "" as a number.
+        env_ignore_empty=True,
     )
 
     output_dir: Path
     temp_dir: Path
     downloads_dir: Path
+    # Display only: DOWNLOADS_DIR as the host sees it (the container mounts it
+    # at /data/downloads), so the menu can say where to put the session files.
+    host_downloads_dir: str = ""
 
     discord_mapping_file: Path
     whisper_prompt_file: Path
@@ -54,9 +60,13 @@ class Settings(BaseSettings):
     timeline_recent_sessions: int = 10
 
     summary_chunk_lines: int = 800
-    summary_temperature: float = 0.3
-    summary_polish_pass: bool = True
-    summary_polish_temperature: float = 0.7
+    # None = the model's default temperature. Google recommends leaving Gemini
+    # 3+ models at their default; lower values can cause looping.
+    summary_temperature: float | None = None
+    # Off by default: the OotD refine pass rewrites the prose anyway, and a
+    # full-draft rewrite is the most output-heavy (expensive) call.
+    summary_polish_pass: bool = False
+    summary_polish_temperature: float | None = None
 
     whisper_model: str = "large-v3"
     whisper_device: str = "cuda"
@@ -64,10 +74,23 @@ class Settings(BaseSettings):
     whisper_cache_dir: Path = Path("./models")
     whisper_language: str = "pl"
     whisper_vad: bool = True
+    # Names linked in the last N Timeline.md sessions are appended to the
+    # hotwords from `whisper_prompt_file` (0 = file only).
+    whisper_hotwords_recent_sessions: int = 3
 
     gemini_api_key: str | None = None
-    gemini_pro_model: str = "gemini-3.1-pro-preview"
-    gemini_flash_model: str = "gemini-3-flash-preview"
+    gemini_pro_model: str = "gemini-4-argon"
+    gemini_flash_model: str = "gemini-3.8-flash"
+    # Thinking level for the summary, polish and validation calls on the pro
+    # model ("low" | "medium" | "high"; None = model default, medium on
+    # gemini-4-argon). Thinking tokens are billed as output.
+    gemini_thinking_level: str | None = None
+    # "flex" = half-price tier with queueing (minutes per call), falling back
+    # to "standard" when Flex is at capacity. The pipeline is unattended.
+    gemini_service_tier: str = "flex"
+    # Validate → auto-fix rounds. A second round only re-checks the draft after
+    # simple string replacements, at the cost of another full-transcript call.
+    validation_max_passes: int = 1
     gemini_api_sleep_secs: float = 3.0
 
     log_file: Path = Path("session_processor.log")

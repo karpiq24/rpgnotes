@@ -52,18 +52,10 @@ def test_validation_report_defaults() -> None:
 # --- validate_summary ---------------------------------------------------------
 
 
-def _mock_instructor(monkeypatch: pytest.MonkeyPatch, reports: list[ValidationReport]) -> MagicMock:
-    fake_completions = MagicMock()
-    fake_completions.create.side_effect = reports
-    fake_client = MagicMock()
-    fake_client.chat.completions = fake_completions
-
-    fake_instructor = MagicMock()
-    fake_instructor.from_gemini.return_value = fake_client
-    fake_instructor.Mode.GEMINI_JSON = "GEMINI_JSON"
-    monkeypatch.setattr(gemini, "instructor", fake_instructor)
-    monkeypatch.setattr(gemini, "genai", MagicMock())
-    return fake_completions
+def _mock_llm(monkeypatch: pytest.MonkeyPatch, reports: list[ValidationReport]) -> MagicMock:
+    fake = MagicMock(side_effect=reports)
+    monkeypatch.setattr(gemini.llm, "generate_structured", fake)
+    return fake
 
 
 def test_validate_summary_applies_error_fixes(
@@ -85,7 +77,7 @@ def test_validate_summary_applies_error_fixes(
         ]
     )
     second = ValidationReport(findings=[])
-    fake = _mock_instructor(monkeypatch, [first, second])
+    fake = _mock_llm(monkeypatch, [first, second])
 
     report_file = tmp_path / "validation_report.md"
     fixed, _ = gemini.validate_summary(
@@ -97,7 +89,7 @@ def test_validate_summary_applies_error_fixes(
     )
 
     assert fixed == "Felicjan rzucił zaklęcie ognia, po raz pierwszy w kampanii."
-    assert fake.create.call_count == 2  # fix applied → one re-validation
+    assert fake.call_count == 2  # fix applied → one re-validation
     report_text = report_file.read_text(encoding="utf-8")
     assert "superlatyw" in report_text
     assert "suspicious" in report_text
@@ -114,7 +106,7 @@ def test_validate_summary_remove_fix_deletes_text(
         ),
         ValidationReport(findings=[]),
     ]
-    _mock_instructor(monkeypatch, reports)
+    _mock_llm(monkeypatch, reports)
 
     fixed, _ = gemini.validate_summary(
         summary="Orestes zaatakował (zmyślony detal).",
@@ -129,28 +121,69 @@ def test_validate_summary_remove_fix_deletes_text(
 def test_validate_summary_stops_after_max_iterations(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    # Every round "fixes" alfa → alfa!, which leaves exactly one "alfa" behind.
     noisy = ValidationReport(
         findings=[
-            Finding(quote="alfa", issue="x", severity="error", suggested_fix="beta"),
+            Finding(quote="alfa", issue="x", severity="error", suggested_fix="alfa!"),
         ]
     )
-    fake = _mock_instructor(monkeypatch, [noisy, noisy, noisy, noisy])
+    fake = _mock_llm(monkeypatch, [noisy, noisy, noisy, noisy])
 
     gemini.validate_summary(
-        summary="alfa alfa alfa alfa",
+        summary="alfa jest tutaj",
         transcript_content="…",
         validation_prompt="…",
         model_name="gemini-pro",
         report_file=tmp_path / "report.md",
         max_iterations=2,
     )
-    assert fake.create.call_count == 2
+    assert fake.call_count == 2
+
+
+def test_validate_summary_skips_ambiguous_quotes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A quote occurring twice can't be fixed by a blind string replacement.
+    reports = [
+        ValidationReport(
+            findings=[Finding(quote="Sydon", issue="x", severity="error", suggested_fix="Sidon")]
+        )
+    ]
+    _mock_llm(monkeypatch, reports)
+    report_file = tmp_path / "report.md"
+
+    fixed, _ = gemini.validate_summary(
+        summary="Sydon przybył. Sydon odszedł.",
+        transcript_content="…",
+        validation_prompt="…",
+        model_name="gemini-pro",
+        report_file=report_file,
+    )
+    assert fixed == "Sydon przybył. Sydon odszedł."
+    assert "Sydon" in report_file.read_text(encoding="utf-8")
+
+
+def test_validate_summary_puts_glossary_in_system_prompt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = _mock_llm(monkeypatch, [ValidationReport(findings=[])])
+    gemini.validate_summary(
+        summary="Kentimane nadchodzi.",
+        transcript_content="[DM]\nIdzie po was, Cant i main.",
+        validation_prompt="FACT-CHECK",
+        model_name="gemini-pro",
+        report_file=tmp_path / "report.md",
+        glossary="GLOSARIUSZ: Kentimane",
+    )
+    system = fake.call_args.kwargs["system_instruction"]
+    assert "FACT-CHECK" in system
+    assert "GLOSARIUSZ: Kentimane" in system
 
 
 def test_validate_summary_clean_draft_writes_empty_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _mock_instructor(monkeypatch, [ValidationReport(findings=[])])
+    _mock_llm(monkeypatch, [ValidationReport(findings=[])])
     report_file = tmp_path / "report.md"
 
     fixed, report = gemini.validate_summary(
@@ -174,7 +207,7 @@ def test_validate_summary_sends_only_the_transcript_as_evidence(
 
     assert "chat_events" not in inspect.signature(gemini.validate_summary).parameters
 
-    fake = _mock_instructor(monkeypatch, [ValidationReport(findings=[])])
+    fake = _mock_llm(monkeypatch, [ValidationReport(findings=[])])
     gemini.validate_summary(
         summary="Draft.",
         transcript_content="[CZAT 00:00:30] Orestes (rzut): rzuty: 1d20 = 20",
@@ -182,7 +215,7 @@ def test_validate_summary_sends_only_the_transcript_as_evidence(
         model_name="gemini-pro",
         report_file=tmp_path / "report.md",
     )
-    content = fake.create.call_args.kwargs["messages"][0]["content"]
+    content = fake.call_args.kwargs["contents"]
     assert content.endswith("TRANSKRYPCJA:\n[CZAT 00:00:30] Orestes (rzut): rzuty: 1d20 = 20")
 
 
@@ -235,3 +268,22 @@ def test_verify_quotes_mixed_keeps_order() -> None:
     assert len(out.quotes) == 2
     assert "Felicjan" in out.quotes[0]
     assert "Orestes" in out.quotes[1]
+
+
+def test_verify_quotes_fixes_misattributed_speaker() -> None:
+    quotes = QuotesData(quotes=['Orestes: "Zaraz wszystko wyleci w powietrze!"'])
+    out = gemini.verify_quotes(quotes, _TRANSCRIPT)
+    assert out.quotes == ['Felicjan: "Zaraz wszystko wyleci w powietrze!"']
+
+
+def test_verify_quotes_matches_full_character_names() -> None:
+    quotes = QuotesData(quotes=['Felicjan Janus Twardowski: "Zaraz wszystko wyleci w powietrze!"'])
+    out = gemini.verify_quotes(quotes, _TRANSCRIPT)
+    assert out.quotes == quotes.quotes
+
+
+def test_verify_quotes_keeps_unknown_speaker_label() -> None:
+    # "Mistrz Gry" isn't a transcript header, so the attribution can't be checked.
+    quotes = QuotesData(quotes=['Mistrz Gry: "Zaraz wszystko wyleci w powietrze!"'])
+    out = gemini.verify_quotes(quotes, _TRANSCRIPT)
+    assert out.quotes == quotes.quotes

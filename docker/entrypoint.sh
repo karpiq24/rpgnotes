@@ -11,6 +11,16 @@
 #      them by name fails with "Unable to open /dev/kfd: Permission denied".
 set -euo pipefail
 
+# --- Rootless Podman -----------------------------------------------------
+# In a rootless user namespace, container root IS the host user (uid_map maps
+# container 0 to a non-zero host uid). Dropping to HOST_UID would run as a
+# subordinate uid, and the chown below would hand the bind mounts — OUTPUT_DIR
+# may be the OotD wiki — to that uid on the host. GPU nodes must then be
+# world-accessible (Fedora's /dev/kfd and renderD* are 0666). Run as is.
+if awk '$1 == 0 && $2 != 0 { rootless = 1 } END { exit !rootless }' /proc/self/uid_map; then
+  exec python3 -m rpgnotes "$@"
+fi
+
 # --- Target (host) user --------------------------------------------------
 # Honor HOST_UID/HOST_GID if provided; otherwise infer from a bind-mounted
 # directory, which carries its host owner's UID/GID into the container.

@@ -3,7 +3,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from rpgnotes.audio import extract_recording_start
+from rpgnotes.audio import extract_recording_start, find_audio_zip, unzip_audio
 
 _INFO_TXT = """Recording SVtMYbqpKCA9
 
@@ -47,3 +47,38 @@ def test_extract_recording_start_missing_zip_or_info(tmp_path: Path) -> None:
 
     _make_craig_zip(tmp_path, info=None)
     assert extract_recording_start(tmp_path) is None
+
+
+def test_unzip_audio_reuses_only_the_sessions_processed_zip(tmp_path: Path) -> None:
+    downloads = tmp_path / "downloads"
+    processed = tmp_path / "processed"
+    audio = tmp_path / "audio"
+    downloads.mkdir()
+    processed.mkdir()
+    zip_path = _make_craig_zip(downloads)
+
+    used = unzip_audio(downloads, audio, processed)
+    assert used == processed / zip_path.name
+    assert not zip_path.exists()
+
+    # Temp cleared: an unknown processed zip is never picked up...
+    for flac in audio.glob("*.flac"):
+        flac.unlink()
+    assert unzip_audio(downloads, audio, processed) is None
+    assert not any(audio.glob("*.flac"))
+    # ...but the one recorded for this session is.
+    assert unzip_audio(downloads, audio, processed, reuse=zip_path.name) == used
+    assert (audio / "1-speaker.flac").exists()
+    assert used.exists()
+
+
+def test_find_audio_zip_prefers_new_download(tmp_path: Path) -> None:
+    downloads = tmp_path / "downloads"
+    processed = tmp_path / "processed"
+    downloads.mkdir()
+    processed.mkdir()
+    old = _make_craig_zip(processed)
+    assert find_audio_zip(downloads, processed) is None
+    assert find_audio_zip(downloads, processed, reuse=old.name) == old
+    new = _make_craig_zip(downloads)
+    assert find_audio_zip(downloads, processed, reuse=old.name) == new

@@ -32,6 +32,11 @@ Dla każdego problematycznego fragmentu draftu zgłoś jedno "finding":
 
 # Ważne
 
+- Transkrypcja to surowy zapis rozpoznawania mowy i regularnie przekręca nazwy
+  własne. Jeśli draft używa nazwy z glosariusza poniżej, a transkrypcja ma
+  w tym miejscu fonetycznie podobną formę (np. "Cant i main" → Kentimane,
+  "Seidon" → Sydon), draft jest POPRAWNY — nie zgłaszaj tego. Nigdy nie
+  proponuj zamiany nazwy kanonicznej na formę z transkrypcji.
 - `quote` MUSI być dosłownym fragmentem draftu (do prostej podmiany string→string).
 - Jeśli draft jest zgodny z transkrypcją, zwróć pustą listę findings.
 - Nie zgłaszaj kwestii stylistycznych ani drobiazgów — tylko faktograficzne.

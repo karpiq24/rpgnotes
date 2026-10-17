@@ -74,7 +74,7 @@ def test_apply_enrichment_chat_only_builds_and_caches(tmp_path: Path) -> None:
     session_assets_dir = _make_session_assets(settings)
     _write_chat_events(session_assets_dir)
 
-    enriched = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", "", 7)
+    enriched = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7)
 
     assert enriched.startswith("\n\n[CZAT PRZED NAGRANIEM] GM: Przed sesją.\n")
     assert "[CZAT 00:00:30] Orestes (rzut): rzuty: 1d20 = 20" in enriched
@@ -83,7 +83,7 @@ def test_apply_enrichment_chat_only_builds_and_caches(tmp_path: Path) -> None:
 
     # Resumable: an existing file is loaded verbatim, nothing is rebuilt.
     enriched_file.write_text("CACHED", encoding="utf-8")
-    assert pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", "", 7) == "CACHED"
+    assert pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7) == "CACHED"
 
 
 def test_apply_enrichment_without_sources_returns_plain_and_writes_nothing(
@@ -92,7 +92,7 @@ def test_apply_enrichment_without_sources_returns_plain_and_writes_nothing(
     settings = _make_settings(tmp_path)
     session_assets_dir = _make_session_assets(settings)
 
-    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", "", 7)
+    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7)
 
     assert out == "PLAIN"
     assert not (session_assets_dir / "transcript_enriched.txt").exists()
@@ -103,7 +103,7 @@ def test_apply_enrichment_survives_broken_chat_events(tmp_path: Path) -> None:
     session_assets_dir = _make_session_assets(settings)
     (session_assets_dir / "chat_events.json").write_text("not-json", encoding="utf-8")
 
-    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", "", 7)
+    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7)
 
     assert out == "PLAIN"
     assert not (session_assets_dir / "transcript_enriched.txt").exists()
@@ -124,7 +124,7 @@ def test_generate_notes_returns_summary_and_quotes(
 
     calls: dict[str, Any] = {}
 
-    monkeypatch.setattr(pipeline.genai, "configure", lambda **_kw: None)
+    monkeypatch.setattr(pipeline.llm, "configure", lambda **_kw: None)
     monkeypatch.setattr(pipeline.time, "sleep", lambda *_a: None)
     monkeypatch.setattr(
         pipeline, "build_session_glossary", lambda **_kw: "GLOSSARY"
@@ -156,3 +156,62 @@ def test_generate_notes_returns_summary_and_quotes(
     assert calls["validate_transcript"] == calls["summary_transcript"]
     assert calls["quotes_transcript"] == "PLAIN TRANSCRIPT"
     assert (session_assets_dir / "draft0.md").read_text(encoding="utf-8") == "VALIDATED"
+
+
+def test_clearing_temp_keeps_screenshots_caches_and_logs(tmp_path: Path) -> None:
+    settings = _make_settings(tmp_path)
+    settings.ensure_directories()
+    shots = settings.temp_dir / "screenshots"
+    shots.mkdir()
+    (shots / "shot_1.png").write_bytes(b"png")
+    (settings.audio_output_dir / "1-dm.flac").write_bytes(b"flac")
+    (settings.temp_dir / "summary_session_7.txt").write_text("x", encoding="utf-8")
+    (settings.temp_dir / ".cache").mkdir()
+    (settings.temp_dir / "session_processor.log").write_text("log", encoding="utf-8")
+    settings.screenshots_dir = str(shots)
+
+    pipeline.clear_temp_work(settings)
+
+    assert sorted(p.name for p in settings.temp_dir.iterdir()) == [
+        ".cache", "audio", "screenshots", "session_processor.log", "transcriptions",
+    ]
+    assert not any(settings.audio_output_dir.iterdir())
+    assert (shots / "shot_1.png").exists()
+
+
+def test_new_session_clears_previous_sessions_temp_work(tmp_path: Path) -> None:
+    settings = _make_settings(tmp_path)
+    settings.ensure_directories()
+    (settings.audio_output_dir / "1-dm.flac").write_bytes(b"old")
+    (settings.temp_transcriptions_dir / "1-dm.json").write_text("[]", encoding="utf-8")
+
+    pipeline._claim_temp_for_session(settings, 80)  # unknown work: adopted, kept
+    assert pipeline.temp_session(settings) == 80
+    assert pipeline.has_temp_work(settings)
+
+    pipeline._claim_temp_for_session(settings, 80)  # same session: kept (resume)
+    assert pipeline.has_temp_work(settings)
+
+    pipeline._claim_temp_for_session(settings, 81)  # new session: cleared
+    assert pipeline.temp_session(settings) == 81
+    assert not pipeline.has_temp_work(settings)
+
+
+def test_prepare_audio_records_zip_and_reuses_it(tmp_path: Path) -> None:
+    import zipfile
+
+    settings = _make_settings(tmp_path)
+    settings.ensure_directories()
+    zip_path = settings.downloads_dir / "craig-abc.flac.zip"
+    with zipfile.ZipFile(zip_path, "w") as zip_ref:
+        zip_ref.writestr("1-dm.flac", b"fake")
+        zip_ref.writestr("info.txt", "Start time:\t2026-07-07T16:48:24.265Z\n")
+    session_assets_dir = settings.assets_base_dir / "081"
+
+    pipeline._prepare_audio(settings, session_assets_dir)
+    assert (session_assets_dir / "audio_source.txt").read_text().strip() == zip_path.name
+    assert (session_assets_dir / "recording_start.txt").read_text().strip() == "1783442904"
+
+    pipeline.clear_temp_work(settings)
+    pipeline._prepare_audio(settings, session_assets_dir)
+    assert (settings.audio_output_dir / "1-dm.flac").exists()

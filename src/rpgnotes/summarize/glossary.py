@@ -55,25 +55,6 @@ def _collect_aliases(context_dir: Path) -> dict[str, set[str]]:
     return aliases
 
 
-def _name_appears(name: str, aliases: dict[str, set[str]], transcript_lower: str) -> bool:
-    """Whether `name` (or an alias) plausibly appears in the transcript.
-
-    Polish names are heavily inflected ("Sybolkorax" -> "Sybolkoraxa") and the
-    transcript may split compound names, so we match a 5-char prefix of the
-    first word rather than the whole name. With no transcript, keep everything.
-    """
-    if not transcript_lower:
-        return True
-    for candidate in (name, *aliases.get(name, set())):
-        words = candidate.split()
-        if not words:
-            continue
-        first = words[0].lower()
-        if len(first) >= 5 and first[:5] in transcript_lower:
-            return True
-    return False
-
-
 def _load_phonetic_corrections(path: Path | None) -> str:
     if path is None:
         return ""
@@ -95,26 +76,28 @@ def _load_phonetic_corrections(path: Path | None) -> str:
 def build_session_glossary(
     context_dir: Path,
     phonetic_corrections_file: Path | None = None,
-    transcript_content: str = "",
+    include_aliases: bool = True,
 ) -> str:
     """Build a session glossary block for embedding into chunk system prompts.
 
-    Combines canonical entity names harvested from `context_dir` (filtered to
-    those appearing in the transcript) with the phonetic-corrections knowledge
-    base. Degrades gracefully: any missing source is simply omitted.
+    Combines every canonical entity name harvested from `context_dir` with the
+    phonetic-corrections knowledge base. Names are deliberately NOT filtered by
+    what appears in the transcript: the names worth listing are exactly the
+    ones the ASR mangles ("Cant i main" → Kentimane, "Seidon" → Sydon), so a
+    transcript filter drops them (measured: ~27% of entities linked in final
+    recaps were missing). The full list is only a few thousand tokens.
+    Degrades gracefully: any missing source is simply omitted.
     """
-    transcript_lower = transcript_content.lower()
     by_category = _collect_canonical_names(context_dir)
-    aliases = _collect_aliases(context_dir) if by_category else {}
+    aliases = _collect_aliases(context_dir) if by_category and include_aliases else {}
 
     sections: list[str] = []
     for category, label in _CATEGORY_LABELS.items():
         names = by_category.get(category, [])
-        matched = [n for n in names if _name_appears(n, aliases, transcript_lower)]
-        if not matched:
+        if not names:
             continue
         lines = [label]
-        for name in matched:
+        for name in names:
             line = f"- **{name}**"
             if aliases.get(name):
                 line += f" — aliasy: {', '.join(sorted(aliases[name]))}"

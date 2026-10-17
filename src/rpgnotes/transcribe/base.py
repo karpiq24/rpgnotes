@@ -10,6 +10,7 @@ class Segment(TypedDict, total=False):
     text: str
     avg_logprob: float
     no_speech_prob: float
+    compression_ratio: float
 
 
 class TranscriberProtocol(Protocol):

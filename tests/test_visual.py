@@ -18,36 +18,26 @@ from rpgnotes.visual import (
 )
 
 
-class _FakeResponse:
-    def __init__(self, text: str) -> None:
-        self.text = text
+class _FakeLLM:
+    """Stands in for llm.generate_text; counts calls and echoes captions."""
 
+    calls = 0
 
-class _FakeModel:
-    """Stands in for genai.GenerativeModel; counts calls and echoes captions."""
-
-    instances: list[_FakeModel] = []
-
-    def __init__(self, *, model_name: str, system_instruction: str) -> None:
-        self.model_name = model_name
-        self.system_instruction = system_instruction
-        self.calls = 0
-        _FakeModel.instances.append(self)
-
-    def generate_content(self, parts: list[Any], **_kwargs: Any) -> _FakeResponse:
-        self.calls += 1
-        return _FakeResponse(f"Opis klatki nr {self.calls}.")
+    @classmethod
+    def generate_text(cls, **_kwargs: Any) -> str:
+        cls.calls += 1
+        return f"Opis klatki nr {cls.calls}."
 
 
 @pytest.fixture
-def fake_genai(monkeypatch: pytest.MonkeyPatch) -> type[_FakeModel]:
-    _FakeModel.instances = []
-    monkeypatch.setattr(visual.genai, "GenerativeModel", _FakeModel)
-    return _FakeModel
+def fake_genai(monkeypatch: pytest.MonkeyPatch) -> type[_FakeLLM]:
+    _FakeLLM.calls = 0
+    monkeypatch.setattr(visual.llm, "generate_text", _FakeLLM.generate_text)
+    return _FakeLLM
 
 
 def _total_calls() -> int:
-    return sum(m.calls for m in _FakeModel.instances)
+    return _FakeLLM.calls
 
 
 def _make_shots(directory: Path, timestamps: list[int], key: set[int] | None = None) -> None:
@@ -90,7 +80,7 @@ def test_load_session_start(tmp_path: Path) -> None:
     assert load_session_start(tmp_path) == 1783440000
 
 
-def test_offsets_use_session_start(fake_genai: type[_FakeModel], tmp_path: Path) -> None:
+def test_offsets_use_session_start(fake_genai: type[_FakeLLM], tmp_path: Path) -> None:
     shots = tmp_path / "shots"
     _make_shots(shots, [1783440090, 1783443725])
     (shots / "session_start.txt").write_text("1783440000", encoding="utf-8")
@@ -100,7 +90,7 @@ def test_offsets_use_session_start(fake_genai: type[_FakeModel], tmp_path: Path)
 
 
 def test_offsets_fall_back_to_earliest_shot(
-    fake_genai: type[_FakeModel], tmp_path: Path, caplog: pytest.LogCaptureFixture
+    fake_genai: type[_FakeLLM], tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     shots = tmp_path / "shots"
     _make_shots(shots, [1783440100, 1783440400])
@@ -109,6 +99,19 @@ def test_offsets_fall_back_to_earliest_shot(
         entries = _caption(shots, tmp_path)
     assert [e.offset_secs for e in entries] == [0.0, 300.0]
     assert any("session_start.txt missing" in r.message for r in caplog.records)
+
+
+def test_frames_from_an_earlier_session_are_skipped(
+    fake_genai: type[_FakeLLM], tmp_path: Path
+) -> None:
+    shots = tmp_path / "shots"
+    start = 1783440000
+    week_old = start - 7 * 24 * 3600
+    _make_shots(shots, [week_old, start - 600, start + 300])
+
+    entries = _caption(shots, tmp_path, recording_start=start)
+    assert [e.offset_secs for e in entries] == [0.0, 300.0]
+    assert fake_genai.calls == 2
 
 
 # --------------------------------------------------------------------------
@@ -125,7 +128,7 @@ def test_mean_abs_diff() -> None:
 
 
 def test_dedupe_drops_near_identical_frames(
-    fake_genai: type[_FakeModel], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    fake_genai: type[_FakeLLM], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     shots = tmp_path / "shots"
     _make_shots(shots, [100, 200, 300])
@@ -143,7 +146,7 @@ def test_dedupe_drops_near_identical_frames(
 
 
 def test_dedupe_always_keeps_key_frames(
-    fake_genai: type[_FakeModel], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    fake_genai: type[_FakeLLM], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     shots = tmp_path / "shots"
     _make_shots(shots, [100, 200], key={200})
@@ -160,7 +163,7 @@ def test_dedupe_always_keeps_key_frames(
 
 
 def test_caption_cache_makes_step_resumable(
-    fake_genai: type[_FakeModel], tmp_path: Path
+    fake_genai: type[_FakeLLM], tmp_path: Path
 ) -> None:
     shots = tmp_path / "shots"
     _make_shots(shots, [100, 200])
@@ -181,7 +184,7 @@ def test_caption_cache_makes_step_resumable(
     assert [e.caption for e in third] == [e.caption for e in first]
 
 
-def test_visual_log_contents(fake_genai: type[_FakeModel], tmp_path: Path) -> None:
+def test_visual_log_contents(fake_genai: type[_FakeLLM], tmp_path: Path) -> None:
     shots = tmp_path / "shots"
     _make_shots(shots, [100, 250], key={250})
     (shots / "session_start.txt").write_text("100", encoding="utf-8")
@@ -198,7 +201,7 @@ def test_visual_log_contents(fake_genai: type[_FakeModel], tmp_path: Path) -> No
     }
 
 
-def test_no_screenshots_returns_empty(fake_genai: type[_FakeModel], tmp_path: Path) -> None:
+def test_no_screenshots_returns_empty(fake_genai: type[_FakeLLM], tmp_path: Path) -> None:
     shots = tmp_path / "shots"
     shots.mkdir()
     assert _caption(shots, tmp_path) == []

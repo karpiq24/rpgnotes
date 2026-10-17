@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from rpgnotes.transcribe.base import Segment, TranscriberProtocol
+from rpgnotes.transcribe.faster import group_speech_clips, split_on_pauses
 from rpgnotes.transcribe.runner import transcribe_audio_dir
 
 
@@ -110,3 +111,27 @@ def test_segment_shape_matches_combiner_expectations(tmp_path: Path) -> None:
     transcribe_audio_dir(audio, transcripts, lambda: fake)
     payload = json.loads((transcripts / "a.json").read_text())
     assert {"start", "end", "text"}.issubset(payload[0].keys())
+
+
+# --- faster-whisper helpers (pure; no model needed) -------------------------
+
+
+def test_group_speech_clips_merges_close_regions_up_to_window() -> None:
+    speech = [(0.0, 2.0), (3.0, 5.0), (20.0, 22.0), (23.0, 40.0), (41.0, 60.0)]
+    # 0-5 merge (1 s gap); 20 starts after a 15 s gap; 23-40 joins 20 (gap 1 s,
+    # span 20 s); 41-60 would make the clip 40 s long, so it starts a new one.
+    assert group_speech_clips(speech, max_span=30.0, max_gap=3.0) == [
+        0.0, 5.0, 20.0, 40.0, 41.0, 60.0,
+    ]
+
+
+def test_group_speech_clips_empty() -> None:
+    assert group_speech_clips([]) == []
+
+
+def test_split_on_pauses_splits_at_long_gaps() -> None:
+    words = [(0.0, 0.4, " Idę"), (0.5, 0.9, " dalej."), (5.0, 5.4, " Atakuję!")]
+    assert split_on_pauses(words, max_pause=1.5) == [
+        (0.0, 0.9, " Idę dalej."),
+        (5.0, 5.4, " Atakuję!"),
+    ]

@@ -2,94 +2,15 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 import unicodedata
-from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
 
-import google.generativeai as genai
-import instructor
-
+from .. import llm
 from ..helpers import load_context_files
-from .chunker import split_transcript
+from .chunker import is_speaker_line, split_transcript
 from .models import Finding, QuotesData, ValidationReport
 
 log = logging.getLogger("rpgnotes")
-
-T = TypeVar("T")
-
-
-def _call_with_retry(
-    fn: Callable[..., T],
-    *args: object,
-    max_retries: int = 3,
-    base_delay: float = 5.0,
-    **kwargs: object,
-) -> T:
-    """Call `fn` with exponential backoff. Raises the last exception on exhaustion."""
-    for attempt in range(1, max_retries + 1):
-        try:
-            return fn(*args, **kwargs)
-        except Exception as e:
-            if attempt == max_retries:
-                raise
-            delay = base_delay * (2 ** (attempt - 1))
-            log.warning(
-                "Gemini API error (attempt %d/%d): %s. Retrying in %.0fs…",
-                attempt,
-                max_retries,
-                e,
-                delay,
-            )
-            time.sleep(delay)
-    raise RuntimeError("unreachable")
-
-
-def generate_summary(
-    *,
-    transcript_content: str,
-    summary_prompt: str,
-    model_name: str,
-    context_dir: Path,
-    cache_file: Path,
-    temperature: float = 0.3,
-) -> str:
-    """Legacy one-shot narrative summary. Reads from `cache_file` if present.
-
-    The default pipeline uses `generate_summary_chunked` instead; this stays
-    for the manual/legacy path.
-    """
-    if cache_file.exists():
-        log.info("Existing session summary found at %s. Loading it…", cache_file)
-        return cache_file.read_text(encoding="utf-8")
-
-    summary_model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=summary_prompt,
-    )
-
-    messages: list[dict[str, object]] = []
-    general_context = load_context_files(context_dir)
-    if general_context:
-        messages.append(
-            {"role": "user", "parts": [f"DODATKOWY KONTEKST KAMPANII:\n{general_context}\n\n---\n\n"]}
-        )
-    messages.append({"role": "user", "parts": [f"TRANSKRYPT OBECNEJ SESJI:\n{transcript_content}"]})
-
-    log.info("Generating detailed session summary…")
-    response = _call_with_retry(
-        summary_model.generate_content,
-        messages,
-        generation_config=genai.GenerationConfig(temperature=temperature),
-    )
-    text: str = response.text
-    log.info("Session summary generated.")
-
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(text, encoding="utf-8")
-    log.info("Interim session summary saved to %s", cache_file)
-    return text
 
 
 _NARRATIVE_RE = re.compile(
@@ -102,8 +23,10 @@ _CHUNK_INSTRUCTIONS = """
 
 Dostajesz jeden fragment transkrypcji (sesja jest przetwarzana po kolei,
 fragment po fragmencie) oraz ROLLING_SUMMARY — skrót tego, co wydarzyło się
-we wcześniejszych fragmentach. Podsumuj TYLKO bieżący fragment; ROLLING_SUMMARY
-służy wyłącznie jako kontekst (nie opisuj ponownie tych wydarzeń).
+we wcześniejszych fragmentach. Może pojawić się też KONIEC POPRZEDNIEGO
+FRAGMENTU — ostatnie wypowiedzi, które są już opisane. Podsumuj TYLKO bieżący
+fragment; ROLLING_SUMMARY i KONIEC POPRZEDNIEGO FRAGMENTU służą wyłącznie jako
+kontekst (nie opisuj ponownie tych wydarzeń).
 
 Zachowuj ściśle chronologię wydarzeń wewnątrz fragmentu — nigdy nie zmieniaj
 ich kolejności.
@@ -167,10 +90,12 @@ def generate_summary_chunked(
     session_number: int,
     cache_file: Path,
     chunk_lines: int = 800,
-    temperature: float = 0.3,
+    temperature: float | None = None,
+    thinking_level: str | None = None,
     polish_pass: bool = True,
-    polish_temperature: float = 0.7,
+    polish_temperature: float | None = None,
     timeline_recent_sessions: int = 0,
+    overlap_lines: int = 40,
 ) -> tuple[str, list[str]]:
     """Chunked map-reduce summary with a rolling context summary.
 
@@ -178,7 +103,11 @@ def generate_summary_chunked(
     boundaries. Chunks are summarized sequentially; each call receives the
     rolling summary of everything before it. NARRATIVE blocks are concatenated
     strictly in order. Per-chunk results are cached in `temp_dir` so the
-    pipeline stays resumable. Returns (summary, rolling_summaries).
+    pipeline stays resumable. The campaign context sits in the system prompt
+    so every chunk (not just the first) can identify NPCs and places, and each
+    chunk also sees the last `overlap_lines` lines of the previous chunk so
+    events straddling a boundary keep their context. Returns
+    (summary, rolling_summaries).
     """
     rolling_summaries: list[str] = []
     if cache_file.exists():
@@ -188,15 +117,19 @@ def generate_summary_chunked(
             rolling_summaries.append(rolling_file.read_text(encoding="utf-8"))
         return summary, rolling_summaries
 
+    general_context = load_context_files(context_dir, timeline_recent_sessions)
+    context_block = (
+        f"# Kontekst kampanii (tło — nie opisuj go jako wydarzeń tej sesji)\n\n{general_context}"
+        if general_context.strip()
+        else ""
+    )
     system_prompt = "\n\n".join(
         part.strip()
-        for part in (style_rules, anti_hallucination, glossary, _CHUNK_INSTRUCTIONS)
+        for part in (style_rules, anti_hallucination, glossary, context_block, _CHUNK_INSTRUCTIONS)
         if part.strip()
     )
-    general_context = load_context_files(context_dir, timeline_recent_sessions)
 
     chunks = split_transcript(transcript_content, chunk_lines)
-    model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
 
     narratives: list[str] = []
     rolling = ""
@@ -213,8 +146,12 @@ def generate_summary_chunked(
             continue
 
         parts: list[str] = []
-        if general_context and index == 1:
-            parts.append(f"DODATKOWY KONTEKST KAMPANII:\n{general_context}\n\n---\n")
+        if index > 1 and overlap_lines > 0:
+            tail = "\n".join(chunks[index - 2].splitlines()[-overlap_lines:]).strip()
+            parts.append(
+                "KONIEC POPRZEDNIEGO FRAGMENTU (już opisany — tylko kontekst):\n"
+                f"{tail}\n\n---\n"
+            )
         if rolling:
             parts.append(f"ROLLING_SUMMARY (wydarzenia z wcześniejszych fragmentów):\n{rolling}\n\n---\n")
         parts.append(
@@ -222,12 +159,14 @@ def generate_summary_chunked(
         )
 
         log.info("Summarizing chunk %d/%d…", index, len(chunks))
-        response = _call_with_retry(
-            model.generate_content,
-            [{"role": "user", "parts": ["\n".join(parts)]}],
-            generation_config=genai.GenerationConfig(temperature=temperature),
+        response_text = llm.generate_text(
+            model=model_name,
+            contents="\n".join(parts),
+            system_instruction=system_prompt,
+            temperature=temperature,
+            thinking_level=thinking_level,
         )
-        narrative, rolling = _parse_chunk_response(response.text)
+        narrative, rolling = _parse_chunk_response(response_text)
         narratives.append(narrative)
         rolling_summaries.append(rolling)
         chunk_cache.write_text(narrative, encoding="utf-8")
@@ -243,6 +182,7 @@ def generate_summary_chunked(
             style_rules=style_rules,
             anti_hallucination=anti_hallucination,
             temperature=polish_temperature,
+            thinking_level=thinking_level,
         )
 
     cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -257,7 +197,8 @@ def _polish_summary(
     model_name: str,
     style_rules: str,
     anti_hallucination: str,
-    temperature: float,
+    temperature: float | None,
+    thinking_level: str | None = None,
 ) -> str:
     """One prose-polish pass. Instructed to change no facts, names, or order."""
     system_prompt = "\n\n".join(
@@ -265,15 +206,15 @@ def _polish_summary(
         for part in (style_rules, anti_hallucination, _POLISH_INSTRUCTIONS)
         if part.strip()
     )
-    model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
     log.info("Running final polish pass over the assembled summary…")
     try:
-        response = _call_with_retry(
-            model.generate_content,
-            [{"role": "user", "parts": [f"DRAFT PODSUMOWANIA:\n{summary}"]}],
-            generation_config=genai.GenerationConfig(temperature=temperature),
-        )
-        polished: str = response.text.strip()
+        polished = llm.generate_text(
+            model=model_name,
+            contents=f"DRAFT PODSUMOWANIA:\n{summary}",
+            system_instruction=system_prompt,
+            temperature=temperature,
+            thinking_level=thinking_level,
+        ).strip()
     except Exception as e:
         log.warning("Polish pass failed (%s). Keeping the unpolished summary.", e)
         return summary
@@ -291,26 +232,26 @@ def validate_summary(
     validation_prompt: str,
     model_name: str,
     report_file: Path,
+    glossary: str = "",
+    thinking_level: str | None = None,
     max_iterations: int = 2,
 ) -> tuple[str, ValidationReport]:
     """Fact-check the draft against the transcript; auto-apply simple fixes.
 
     Runs up to `max_iterations` validate → fix rounds. Findings with
-    severity="error" whose quote is found verbatim in the draft are applied as
-    string replacements; everything else is left for the human in a Markdown
-    report written to `report_file`. `transcript_content` is expected to be
+    severity="error" whose quote occurs exactly once in the draft are applied
+    as string replacements; everything else is left for the human in a
+    Markdown report written to `report_file`. The session `glossary` goes into
+    the system prompt so the checker knows canonical names are correct even
+    when the transcript spells them the way the ASR heard them.
+    `transcript_content` is expected to be
     the enriched transcript, so `[CZAT]` chat-event lines (exact rolls, damage
     numbers and who cast what) and `[VISUAL]` anchors already sit inline as
     hard evidence. Returns (fixed_summary, last_report).
     """
-    client = instructor.from_gemini(
-        client=genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=validation_prompt,
-        ),
-        mode=instructor.Mode.GEMINI_JSON,
+    system_prompt = "\n\n".join(
+        part.strip() for part in (validation_prompt, glossary) if part.strip()
     )
-
     current = summary
     report = ValidationReport(findings=[])
     all_unapplied: list[Finding] = []
@@ -319,16 +260,12 @@ def validate_summary(
 
     for iteration in range(1, max_iterations + 1):
         log.info("Validation pass %d/%d…", iteration, max_iterations)
-        report = _call_with_retry(
-            client.chat.completions.create,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"DRAFT PODSUMOWANIA:\n{current}\n\n---\n\n{evidence}",
-                }
-            ],
-            response_model=ValidationReport,
-            max_retries=3,
+        report = llm.generate_structured(
+            model=model_name,
+            contents=f"DRAFT PODSUMOWANIA:\n{current}\n\n---\n\n{evidence}",
+            schema=ValidationReport,
+            system_instruction=system_prompt,
+            thinking_level=thinking_level,
         )
         if not report.findings:
             log.info("Validation pass %d found no issues.", iteration)
@@ -337,7 +274,9 @@ def validate_summary(
         applied = 0
         unapplied: list[Finding] = []
         for finding in report.findings:
-            if finding.severity == "error" and finding.quote and finding.quote in current:
+            # Only unambiguous quotes: a short quote like a bare name can occur
+            # many times, and replacing every occurrence rewrites correct text.
+            if finding.severity == "error" and finding.quote and current.count(finding.quote) == 1:
                 replacement = "" if finding.suggested_fix.strip().lower() == "remove" else finding.suggested_fix
                 current = current.replace(finding.quote, replacement)
                 applied += 1
@@ -392,14 +331,44 @@ def _quote_text(quote: str) -> str:
     return match.group("body") if match else quote
 
 
+def _speaker_texts(transcript_content: str) -> dict[str, str]:
+    """Normalized spoken text per speaker, from the `[Speaker]`-header transcript."""
+    texts: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in transcript_content.splitlines():
+        if is_speaker_line(line):
+            current = line.strip()[1:-1].strip()
+        elif current is not None and line.strip():
+            texts.setdefault(current, []).append(_normalize_for_match(line))
+    return {speaker: " | ".join(parts) for speaker, parts in texts.items()}
+
+
+def _resolve_speaker(claimed: str, speakers: list[str]) -> str | None:
+    """Map a quote's speaker label ("Arevon Elorrenthi") to a transcript header ("Arevon")."""
+    claimed_norm = _normalize_for_match(claimed)
+    if not claimed_norm:
+        return None
+    for speaker in speakers:
+        speaker_norm = _normalize_for_match(speaker)
+        if speaker_norm and (
+            claimed_norm == speaker_norm
+            or claimed_norm.split()[0] == speaker_norm.split()[0]
+        ):
+            return speaker
+    return None
+
+
 def verify_quotes(quotes: QuotesData, transcript_content: str) -> QuotesData:
-    """Drop quotes that don't (fuzzily) appear in the transcript.
+    """Drop quotes that don't (fuzzily) appear in the transcript; fix misattributions.
 
     A quote passes if its normalized spoken text is a substring of the
     normalized transcript, or if a long-enough prefix/suffix window matches
-    (tolerates trailing paraphrase or elision).
+    (tolerates trailing paraphrase or elision). When the quote's speaker is a
+    known transcript speaker who never said it, but exactly one other speaker
+    did, the attribution is rewritten to that speaker.
     """
     normalized_transcript = _normalize_for_match(transcript_content)
+    by_speaker = _speaker_texts(transcript_content)
     kept: list[str] = []
     for quote in quotes.quotes:
         body = _normalize_for_match(_quote_text(quote))
@@ -411,10 +380,27 @@ def verify_quotes(quotes: QuotesData, transcript_content: str) -> QuotesData:
         if len(words) > 6:
             candidates.append(" ".join(words[:6]))
             candidates.append(" ".join(words[-6:]))
-        if any(candidate in normalized_transcript for candidate in candidates):
-            kept.append(quote)
-        else:
+        if not any(candidate in normalized_transcript for candidate in candidates):
             log.warning("Dropping unverified quote (not found in transcript): %r", quote)
+            continue
+
+        claimed, sep, rest = quote.partition(":")
+        claimed_speaker = _resolve_speaker(claimed, list(by_speaker)) if sep else None
+        if claimed_speaker is not None:
+            said_by = [
+                speaker
+                for speaker, text in by_speaker.items()
+                if any(candidate in text for candidate in candidates)
+            ]
+            if claimed_speaker not in said_by and len(said_by) == 1:
+                log.warning(
+                    "Quote attributed to %s but spoken by %s; fixing: %r",
+                    claimed.strip(),
+                    said_by[0],
+                    quote,
+                )
+                quote = f"{said_by[0]}:{rest}"
+        kept.append(quote)
     log.info("Quote verification: %d/%d quotes kept.", len(kept), len(quotes.quotes))
     return QuotesData(quotes=kept)
 
@@ -434,19 +420,12 @@ def generate_quotes(
         except Exception as e:
             log.warning("Failed to load existing quotes from %s: %s. Re-generating.", cache_file, e)
 
-    client = instructor.from_gemini(
-        client=genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=quotes_prompt,
-        ),
-        mode=instructor.Mode.GEMINI_JSON,
-    )
-
     log.info("Extracting memorable quotes…")
-    data: QuotesData = client.chat.completions.create(
-        messages=[{"role": "user", "content": f"PEŁNA TRANSKRYPCJA:\n{transcript_content}"}],
-        response_model=QuotesData,
-        max_retries=3,
+    data = llm.generate_structured(
+        model=model_name,
+        contents=f"PEŁNA TRANSKRYPCJA:\n{transcript_content}",
+        schema=QuotesData,
+        system_instruction=quotes_prompt,
     )
     log.info("Quotes extracted.")
 

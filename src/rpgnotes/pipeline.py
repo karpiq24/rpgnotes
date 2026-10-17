@@ -9,10 +9,10 @@ import time
 from pathlib import Path
 from typing import TypeVar
 
-import google.generativeai as genai
 from pydantic import BaseModel, ValidationError
 
-from .audio import extract_recording_start, unzip_audio
+from . import llm
+from .audio import find_audio_zip, read_recording_start, unzip_audio
 from .chatevents import ChatEvent, extract_chat_events, write_chat_events
 from .chatlog import process_chat_log
 from .config import Settings
@@ -29,11 +29,17 @@ from .summarize import (
 from .template import save_summary_file
 from .transcribe import combine_transcriptions, transcribe_audio_dir
 from .transcribe.faster import FasterWhisperTranscriber
+from .transcribe.hotwords import parse_hotwords_file, recent_timeline_names
 from .visual import VisualEntry, caption_screenshots
 
 log = logging.getLogger("rpgnotes")
 
 _Model = TypeVar("_Model", bound=BaseModel)
+
+# Session number the temp work (audio, transcriptions, AI drafts) belongs to.
+TEMP_SESSION_FILE = "session.txt"
+# Name of the Craig zip a session was transcribed from (in its assets dir).
+AUDIO_SOURCE_FILE = "audio_source.txt"
 
 
 def _fallback_session_date() -> _dt.date:
@@ -42,13 +48,16 @@ def _fallback_session_date() -> _dt.date:
 
 
 def _build_transcriber(settings: Settings) -> FasterWhisperTranscriber:
-    initial_prompt = settings.whisper_prompt_file.read_text(encoding="utf-8").strip()
+    hotwords = parse_hotwords_file(settings.whisper_prompt_file.read_text(encoding="utf-8"))
+    hotwords += recent_timeline_names(
+        settings.context_dir, settings.whisper_hotwords_recent_sessions
+    )
     return FasterWhisperTranscriber(
         model_size=settings.whisper_model,
         device=settings.whisper_device,
         compute_type=settings.whisper_compute_type,
         download_root=settings.whisper_cache_dir,
-        initial_prompt=initial_prompt,
+        hotwords=hotwords,
         language=settings.whisper_language,
         vad_filter=settings.whisper_vad,
     )
@@ -67,11 +76,11 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
         session_date = _fallback_session_date()
         log.warning("Could not determine date. Defaulting to last Monday: %s", session_date)
     log.info("✅ Session %d on %s", session_number, session_date)
+    _claim_temp_for_session(settings, session_number)
 
     log.info("\n[Step 2/4] Preparing Audio Files…")
     session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
-    _save_recording_start(settings, session_assets_dir)
-    unzip_audio(settings.downloads_dir, settings.audio_output_dir, settings.processed_dir)
+    _prepare_audio(settings, session_assets_dir)
     log.info("✅ Audio files are ready.")
     _save_chat_events(session_assets_dir)
 
@@ -103,7 +112,34 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     return transcript_file, session_number, session_date
 
 
-def _save_recording_start(settings: Settings, session_assets_dir: Path) -> None:
+def session_audio_zip(settings: Settings, session_assets_dir: Path) -> Path | None:
+    """The Craig zip for this session: a new download, else the one recorded on first run."""
+    source_file = session_assets_dir / AUDIO_SOURCE_FILE
+    known = source_file.read_text(encoding="utf-8").strip() if source_file.exists() else None
+    return find_audio_zip(settings.downloads_dir, settings.processed_dir, known)
+
+
+def _prepare_audio(settings: Settings, session_assets_dir: Path) -> None:
+    """Unzip the session's audio into temp and save its recording start.
+
+    The zip name is recorded per session (`audio_source.txt`) so a re-run after
+    clearing temp reuses exactly that zip from the processed dir.
+    """
+    zip_path = session_audio_zip(settings, session_assets_dir)
+    used = unzip_audio(
+        settings.downloads_dir,
+        settings.audio_output_dir,
+        settings.processed_dir,
+        reuse=zip_path.name if zip_path else None,
+    )
+    if used is not None:
+        session_assets_dir.mkdir(parents=True, exist_ok=True)
+        (session_assets_dir / AUDIO_SOURCE_FILE).write_text(f"{used.name}\n", encoding="utf-8")
+        zip_path = used
+    _save_recording_start(session_assets_dir, zip_path)
+
+
+def _save_recording_start(session_assets_dir: Path, zip_path: Path | None) -> None:
     """Persist the Craig recording start (unix ts) as `recording_start.txt`.
 
     This is the shared t=0 anchor for transcript offsets, `[VISUAL]` lines and
@@ -112,7 +148,10 @@ def _save_recording_start(settings: Settings, session_assets_dir: Path) -> None:
     anchor_file = session_assets_dir / "recording_start.txt"
     if anchor_file.exists():
         return
-    started = extract_recording_start(settings.downloads_dir, settings.processed_dir)
+    if zip_path is None or not zip_path.is_file():
+        log.warning("Craig zip for this session not found — recording start unknown.")
+        return
+    started = read_recording_start(zip_path)
     if started is None:
         return
     session_assets_dir.mkdir(parents=True, exist_ok=True)
@@ -203,7 +242,6 @@ def _apply_enrichment(
     settings: Settings,
     session_assets_dir: Path,
     transcript_content: str,
-    glossary: str,
     session_number: int,
 ) -> str:
     """Merge `[VISUAL]` captions and `[CZAT]` chat events into one enriched transcript.
@@ -219,7 +257,13 @@ def _apply_enrichment(
         log.info("Existing enriched transcript found at %s. Loading it…", enriched_file)
         return enriched_file.read_text(encoding="utf-8")
 
-    entries = _caption_session_screenshots(settings, session_assets_dir, glossary, session_number)
+    # Captions only need canonical names to label tokens/handouts: no aliases
+    # (Polish inflections) and no ASR phonetic table — ~2.5k instead of ~12.7k
+    # tokens on every frame.
+    caption_glossary = build_session_glossary(context_dir=settings.context_dir, include_aliases=False)
+    entries = _caption_session_screenshots(
+        settings, session_assets_dir, caption_glossary, session_number
+    )
     chat_events = _load_chat_events(session_assets_dir)
     if not entries and not chat_events:
         return transcript_content
@@ -252,7 +296,18 @@ def _generate_notes(
         log.warning("GEMINI_API_KEY not set. Skipping note generation.")
         return None
 
-    genai.configure(api_key=settings.gemini_api_key)
+    llm.configure(api_key=settings.gemini_api_key, service_tier=settings.gemini_service_tier)
+    try:
+        return _generate_notes_with_client(settings, transcript_file, session_number)
+    finally:
+        llm.log_usage_summary()
+
+
+def _generate_notes_with_client(
+    settings: Settings,
+    transcript_file: Path,
+    session_number: int,
+) -> tuple[str, QuotesData] | None:
     plain_transcript = transcript_file.read_text(encoding="utf-8")
 
     summary_cache = settings.temp_dir / f"summary_session_{session_number}.txt"
@@ -266,14 +321,13 @@ def _generate_notes(
     glossary = build_session_glossary(
         context_dir=settings.context_dir,
         phonetic_corrections_file=settings.phonetic_corrections_file,
-        transcript_content=plain_transcript,
     )
 
     # Summary generation and validation see the enriched transcript ([VISUAL]
     # + [CZAT] anchors); quote extraction/verification stays on the plain one
     # so quote candidates are always actually spoken lines.
     transcript_content = _apply_enrichment(
-        settings, session_assets_dir, plain_transcript, glossary, session_number
+        settings, session_assets_dir, plain_transcript, session_number
     )
 
     try:
@@ -289,6 +343,7 @@ def _generate_notes(
             cache_file=summary_cache,
             chunk_lines=settings.summary_chunk_lines,
             temperature=settings.summary_temperature,
+            thinking_level=settings.gemini_thinking_level,
             polish_pass=settings.summary_polish_pass,
             polish_temperature=settings.summary_polish_temperature,
             timeline_recent_sessions=settings.timeline_recent_sessions,
@@ -310,6 +365,9 @@ def _generate_notes(
                 validation_prompt=settings.validation_prompt_file.read_text(encoding="utf-8"),
                 model_name=settings.gemini_pro_model,
                 report_file=report_file,
+                glossary=glossary,
+                thinking_level=settings.gemini_thinking_level,
+                max_iterations=settings.validation_max_passes,
             )
             validated_cache.write_text(summary, encoding="utf-8")
         except Exception as e:
@@ -418,29 +476,60 @@ def _prompt_json(model_cls: type[_Model], label: str) -> _Model | None:
             print("Paste the JSON again:")
 
 
-def handle_temp_directory(settings: Settings, *, interactive: bool) -> None:
-    """If `interactive`, ask whether to wipe a non-empty temp dir; otherwise no-op."""
-    if not (settings.temp_dir.exists() and any(settings.temp_dir.iterdir())):
-        return
-    if not interactive:
-        log.info("Reusing existing temporary files in %s.", settings.temp_dir)
-        return
+def clear_temp_work(settings: Settings) -> None:
+    """Delete the pipeline's work files in the temp dir.
 
-    print("-" * 50)
-    print(f"⚠️  Warning: Temporary directory '{settings.temp_dir}' already contains files.")
-    print("Continuing will reuse existing transcriptions and interim AI-generated notes.")
-    while True:
-        choice = input("Delete the existing temporary directory? [y/n]: ").lower().strip()
-        if choice in {"y", "yes"}:
-            try:
-                shutil.rmtree(settings.temp_dir)
-                log.info("Temporary directory '%s' has been removed.", settings.temp_dir)
-            except OSError as e:
-                log.error("Error removing temporary directory: %s. Remove manually.", e)
-                sys.exit(1)
-            break
-        if choice in {"n", "no"}:
-            log.info("Continuing with existing temporary files.")
-            break
-        print("Invalid choice. Enter 'y' or 'n'.")
-    print("-" * 50)
+    Kept: the screenshots dir (usually `temp/screenshots`; wiping it before
+    ingestion would lose the session's frames), dotfiles (the container's
+    $HOME caches, e.g. compiled GPU kernels) and logs (the log file may be open).
+    In the container the temp and screenshots dirs are separate bind mounts of
+    the same host folder, so they are compared by inode, not path. Emptying
+    (rather than removing) the dir also works when it is a mount point.
+    """
+    screenshots_dir = settings.resolved_screenshots_dir
+    for child in settings.temp_dir.iterdir():
+        if child.name.startswith(".") or child.suffix == ".log":
+            continue
+        if screenshots_dir is not None and screenshots_dir.exists() and child.samefile(screenshots_dir):
+            continue
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    settings.audio_output_dir.mkdir(parents=True, exist_ok=True)
+    settings.temp_transcriptions_dir.mkdir(parents=True, exist_ok=True)
+
+
+def temp_session(settings: Settings) -> int | None:
+    """The session the temp work belongs to, or None when unknown."""
+    try:
+        return int((settings.temp_dir / TEMP_SESSION_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def has_temp_work(settings: Settings) -> bool:
+    return any(settings.audio_output_dir.glob("*.flac")) or any(
+        settings.temp_transcriptions_dir.glob("*.json")
+    )
+
+
+def _claim_temp_for_session(settings: Settings, session_number: int) -> None:
+    """Clear temp work left from a different session, then tag temp with `session_number`.
+
+    Without this, the audio and transcriptions of the previous session would be
+    reused for the new one (both steps skip when their outputs exist).
+    """
+    previous = temp_session(settings)
+    if previous is not None and previous != session_number:
+        log.info(
+            "Temp holds work for session %d. Clearing it for session %d.", previous, session_number
+        )
+        clear_temp_work(settings)
+    elif previous is None and has_temp_work(settings):
+        log.warning(
+            "Temp has audio/transcriptions of an unknown session; assuming session %d. "
+            "If they belong to another session, re-run with --fresh.",
+            session_number,
+        )
+    (settings.temp_dir / TEMP_SESSION_FILE).write_text(f"{session_number}\n", encoding="utf-8")
