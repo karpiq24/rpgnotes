@@ -2,7 +2,7 @@
   "id": "rpgnotes-recorder",
   "title": "RPG Notes Recorder",
   "description": "Records a game session for rpgnotes: chat, rolls, scenes, combat, handouts and map snapshots, saved as one session<NN>.json. You start and stop it; it suggests both.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "compatibility": {
     "minimum": "13",
     "verified": "14"
@@ -17,5 +17,5 @@
   ],
   "url": "https://github.com/karpiq24/rpgnotes",
   "manifest": "https://github.com/karpiq24/rpgnotes/releases/latest/download/module.json",
-  "download": "https://github.com/karpiq24/rpgnotes/releases/download/foundry-v0.1.0/rpgnotes-recorder.zip"
+  "download": "https://github.com/karpiq24/rpgnotes/releases/download/foundry-v0.1.1/rpgnotes-recorder.zip"
 }

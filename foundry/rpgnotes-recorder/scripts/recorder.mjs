@@ -539,7 +539,8 @@ function registerHooks() {
   });
 
   Hooks.on("chatMessage", (_chatLog, message) => {
-    const match = message.trim().match(/^\/rpgnotes\b\s*(\S*)\s*(.*)$/i);
+    // v14's rich-text chat input sends HTML ("<p>/rpgnotes</p>"); v13 sends plain text.
+    const match = plainText(message, 200).match(/^\/rpgnotes\b\s*(\S*)\s*(.*)$/i);
     if (!match) return;
     if (game.user.isGM) command(match[1].toLowerCase(), match[2].trim());
     return false; // never post the command itself
