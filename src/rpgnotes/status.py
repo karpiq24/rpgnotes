@@ -11,6 +11,7 @@ from .audio import read_recording_start
 from .chatlog import find_chat_log
 from .config import Settings
 from .foundry import is_foundry_export
+from .manifest import imported_since_last_run
 from .pipeline import has_temp_work, session_audio_zip, temp_session
 from .visual import STALE_FRAME_SECS, parse_screenshot_timestamp
 
@@ -28,7 +29,11 @@ class SessionStatus:
     transcribed_tracks: int = 0
     transcript: bool = False
     draft: bool = False
+    details: bool = False
     quotes: bool = False
+    # None: never imported into the wiki; False: rpgnotes ran again since.
+    imported: bool | None = None
+    campaign_context: bool = False
     screenshots_enabled: bool = False
     # Session file saved by the Foundry recorder module (events + map snapshots).
     foundry_events: int | None = None
@@ -52,8 +57,12 @@ def _recording_start(session_assets_dir: Path, audio_zip: Path | None) -> int | 
 
 
 def collect_status(settings: Settings) -> SessionStatus:
+    context_file = settings.campaign_context_file
     status = SessionStatus(
         api_key=bool(settings.gemini_api_key),
+        campaign_context=context_file is not None
+        and context_file.is_file()
+        and context_file.stat().st_size > 0,
         temp_session=temp_session(settings),
         temp_has_work=has_temp_work(settings),
     )
@@ -62,11 +71,13 @@ def collect_status(settings: Settings) -> SessionStatus:
         return status
     status.chat_log, status.session_number, status.session_date = info
 
-    session_assets_dir = settings.assets_base_dir / f"{status.session_number:03d}"
+    session_assets_dir = settings.session_dir(status.session_number)
     status.audio_zip = session_audio_zip(settings, session_assets_dir)
     status.transcript = (session_assets_dir / "transcript.txt").exists()
     status.draft = (session_assets_dir / "draft0.md").exists()
+    status.details = (session_assets_dir / "details.json").exists()
     status.quotes = (session_assets_dir / "quotes.json").exists()
+    status.imported = imported_since_last_run(session_assets_dir)
 
     if status.temp_session == status.session_number:
         tracks = list(settings.audio_output_dir.glob("*.flac"))
@@ -155,12 +166,27 @@ def format_status(status: SessionStatus, settings: Settings) -> str:
         lines.append(f"  Gemini       {settings.gemini_pro_model}, {settings.gemini_service_tier} tier")
     else:
         lines.append("  Gemini       ✗ GEMINI_API_KEY not set in .env (only transcription will run)")
+    if not status.campaign_context:
+        lines.append(
+            "  Campaign     ✗ no campaign context (CAMPAIGN_CONTEXT_FILE): no names, party "
+            "or hotwords. Run scripts/export_context.py in the wiki."
+        )
 
     lines.append("")
     lines.append(
-        f"  In the wiki  {_mark(status.transcript)} transcript   "
-        f"{_mark(status.draft)} draft0.md   {_mark(status.quotes)} quotes"
+        f"  Outbox       {_mark(status.transcript)} transcript   "
+        f"{_mark(status.draft)} draft0.md   {_mark(status.details)} details   "
+        f"{_mark(status.quotes)} quotes"
     )
+    if status.imported:
+        lines.append("  Wiki         ✓ imported")
+    elif status.imported is False:
+        lines.append(
+            f"  Wiki         changed since the last import: run /import-session "
+            f"{status.session_number} again"
+        )
+    elif status.draft and status.details and status.quotes:
+        lines.append(f"  Wiki         not imported yet: run /import-session {status.session_number}")
     if status.tracks and status.transcribed_tracks < status.tracks:
         lines.append(
             f"  Resuming     {status.transcribed_tracks}/{status.tracks} audio tracks "

@@ -1,4 +1,4 @@
-FROM rocm/dev-ubuntu-24.04:7.2.2-complete
+FROM docker.io/rocm/dev-ubuntu-24.04:7.2.2-complete
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -26,7 +26,7 @@ COPY src/ ./src/
 RUN pip install --break-system-packages --no-cache-dir ".[dev]"
 
 COPY prompts/ ./prompts/
-COPY template.md discord_speaker_mapping.json ./
+COPY discord_speaker_mapping.json ./
 COPY tests/ ./tests/
 
 # Self-configuring entrypoint detects the host user + GPU device GIDs at

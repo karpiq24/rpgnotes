@@ -1,6 +1,6 @@
 # RPG Session Notes Automator
 
-Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a validated, AI-drafted session recap (`draft0.md`), which OotD assembles into the final session note after the refine pass.
+Turn a TTRPG session bundle — a `craig-*.flac.zip` of per-speaker audio plus a `session*.json` chat log — into a **session package**: transcripts, chat events, a validated AI-drafted recap (`draft0.md`), its title and detail lists (`details.json`) and quotes, with a `manifest.json`. The wiki ([OotD](https://github.com/karpiq24/OotD)) imports the package and assembles the session note.
 
 - **Transcription**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on CTranslate2 — AMD ROCm and NVIDIA CUDA both work.
 - **Summarization**: Google Gemini (`gemini-4-argon` by default) via the `google-genai` SDK, with native structured output.
@@ -15,7 +15,7 @@ $EDITOR .env                    # set GEMINI_API_KEY at minimum
 ./run.sh                        # first run builds the image, then shows the menu
 ```
 
-That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/assets/sessions/<NNN>/` — point `OUTPUT_DIR` at an OotD checkout's `content/` directory and they're immediately visible there, no copy step needed. The final `Sesja XX - <title>.md` note is rendered by OotD after refinement (the manual workflow still renders it locally into `OUTPUT_DIR/01-Sessions/`).
+That's it. Each session's package ends up in `OUTPUT_DIR/<NNN>/` (default `./output/`); in OotD, `/import-session <N>` picks it up from there. rpgnotes never writes into the wiki.
 
 ## Commands
 
@@ -26,7 +26,6 @@ That's it. Per-session artifacts (including `draft0.md`) end up in `OUTPUT_DIR/a
 | `./run.sh status` | Only the status screen, then exit. |
 | `./run.sh full` | Transcribe + Gemini draft/quotes, no questions (also the default when not in a terminal). |
 | `./run.sh transcribe` | Transcription only (no Gemini calls). |
-| `./run.sh manual` | Skip Gemini; paste summary/details/quotes JSON manually (renders the final note locally). |
 | `--fresh` | With any command: redo the session from scratch instead of resuming (re-transcribes, calls Gemini again). |
 
 `./run.sh` checks `.env` and the mounted folders first, creates the ones this repo owns, and rebuilds the image quietly (log in `temp/build.log`).
@@ -47,12 +46,11 @@ The status screen looks like this:
   Screenshots  37 frames
   Gemini       gemini-4-argon, flex tier
 
-  In the wiki  · transcript   · draft0.md   · quotes
+  Outbox       · transcript   · draft0.md   · details   · quotes
   Note         temp holds work for session 80; it is cleared when you start
 
   [1] Process session 81: transcribe + AI notes   (Enter)
   [2] Transcribe only (no Gemini cost)
-  [m] Enter notes manually (paste summary and JSON)
   [q] Quit
 ```
 
@@ -70,13 +68,13 @@ Runs are resumable: stop with `Ctrl+C` at any point and the next run continues w
 - **Chat command** (GM): `/rpgnotes` status · `start` · `stop` (save now) · `key` (snapshot marked as a key moment) · `discard` · `number 85` (set the session number).
 - **After saving** it offers to clear the chat log (a long log slows Foundry down).
 
-The pipeline reads the file like the old chat export (same `title`/`archiveDate` keys): events become `[CZAT …]` lines in the enriched transcript, and the snapshots are unpacked to `TEMP_DIR/foundry_snapshots/` and captioned instead of `SCREENSHOTS_DIR`. The wiki copy (`chat_log.json`) keeps the snapshot metadata without the images. Old macro exports still work.
+The pipeline reads the file like the old chat export (same `title`/`archiveDate` keys): events become `[CZAT …]` lines in the enriched transcript, and the snapshots are unpacked to `TEMP_DIR/foundry_snapshots/` and captioned instead of `SCREENSHOTS_DIR`. The outbox copy (`chat_log.json`) keeps the snapshot metadata without the images. Old macro exports still work.
 
 **Install:** in Foundry's setup screen, *Add-on Modules → Install Module*, paste the manifest URL `https://github.com/karpiq24/rpgnotes/releases/latest/download/module.json`, enable the module in the world, then set the next session number (`/rpgnotes number 85` or the module settings). **Release:** bump `version` and the `download` URL in `module.json`, run `foundry/build.sh`, and upload `foundry/dist/*` to a GitHub release `foundry-v<version>`.
 
 ## Podman / Fedora
 
-`./run.sh` also works where `docker` is Podman (Fedora): under **rootless** Podman the entrypoint runs as container root — which *is* your host user — instead of dropping to `HOST_UID` (that would map to a subordinate uid and re-own the bind mounts, including an OotD `OUTPUT_DIR`). The compose file sets `label=disable` so SELinux lets the container read your home-dir bind mounts without relabeling them. Rootless Podman also refuses missing bind-mount sources; `./run.sh` creates the repo-owned ones and names any `.env` path that doesn't exist.
+`./run.sh` also works where `docker` is Podman (Fedora): under **rootless** Podman the entrypoint runs as container root — which *is* your host user — instead of dropping to `HOST_UID` (that would map to a subordinate uid and re-own the bind mounts). The compose file sets `label=disable` so SELinux lets the container read your home-dir bind mounts without relabeling them. Rootless Podman also refuses missing bind-mount sources; `./run.sh` creates the repo-owned ones and names any `.env` path that doesn't exist.
 
 ## AMD GPU support
 
@@ -110,26 +108,25 @@ Key summarization knobs (chunked map-reduce summarizer):
 
 - `SUMMARY_CHUNK_LINES` — transcript chunk size in lines (default `800`); chunks break only at speaker-turn boundaries.
 - `SUMMARY_TEMPERATURE` — temperature for the factual per-chunk summaries (default: empty = the model's default; Google recommends the default for Gemini 3+, lower values can cause looping).
-- `SUMMARY_POLISH_PASS` — enable the final prose-polish pass that may improve style but changes no facts, names, or event order (default `false`: OotD's refine pass rewrites the prose anyway, and this is the most output-heavy call).
+- `SUMMARY_POLISH_PASS` — enable the final prose-polish pass that may improve style but changes no facts, names, or event order (default `false`: it is the most output-heavy call, and the draft is reviewed and edited by hand in the wiki anyway).
 - `SUMMARY_POLISH_TEMPERATURE` — temperature for the polish pass (default: empty = model default).
-- `GEMINI_PRO_MODEL` / `GEMINI_FLASH_MODEL` — `gemini-4-argon` (summary, polish, validation) and `gemini-3.8-flash` (quotes, screenshot captions).
+- `GEMINI_PRO_MODEL` / `GEMINI_FLASH_MODEL` — `gemini-4-argon` (summary, polish, validation) and `gemini-3.8-flash` (details, quotes, screenshot captions).
 - `GEMINI_THINKING_LEVEL` — thinking level for the summary/polish/validation calls: `low`, `medium` or `high` (default: empty = model default, `medium` on Argon; thinking is billed as output).
 - `GEMINI_SERVICE_TIER` — `flex` (default; half price, each call may queue for minutes, falls back to `standard` when Flex is at capacity) or `standard`.
 - `VALIDATION_MAX_PASSES` — validate → auto-fix rounds (default `1`; each round re-reads the whole transcript).
 - Every Gemini call logs its input (cached), output and thinking tokens, and the run ends with per-model totals — check `cached` to confirm implicit caching kicks in across chunks.
-- `STYLE_RULES_FILE` / `ANTI_HALLUCINATION_FILE` / `VALIDATION_PROMPT_FILE` — the composable prompt parts (`prompts/style_rules.txt`, `prompts/anti_hallucination.txt`, `prompts/validation.txt`).
-- `PHONETIC_CORRECTIONS_FILE` — ASR-error corrections table embedded into the per-session glossary (default `../OotD/.agents/skills/rpg-summarizer/resources/phonetic_corrections.md`; skipped gracefully if missing).
-- Every chunk call gets the full session glossary (all canonical entity names + aliases + phonetic corrections) **and** the campaign context in its system prompt, plus the tail of the previous chunk for continuity. The glossary is deliberately not filtered by what the transcript contains — the names worth listing are exactly the ones the ASR mangles. The validation pass gets the glossary too, so it never "corrects" a canonical name back to its ASR spelling.
-- `CONTEXT_DIR` — campaign context (entity wiki pages, `Campaign_Context.md`, `Timeline.md`) loaded at runtime; campaign facts are **not** baked into the prompts. **Recommended**: point this at an OotD checkout's `content/` directory (e.g. `CONTEXT_DIR=../OotD/content`) rather than copying context into rpgnotes — its layout (`02-People/`, `03-Locations/`, `04-Items-and-Loot/`, `05-Lore/`, plus `Campaign_Context.md`/`Timeline.md` at the root) is exactly what `build_session_glossary`/`load_context_files` expect, so campaign state is read live from the single source of truth instead of drifting out of sync.
-- `TIMELINE_RECENT_SESSIONS` — only the last N `## Sesja` sections of `Timeline.md` are sent as AI context (default `10`; `0` = whole file). The full timeline grows unbounded and ancient sessions add nothing but tokens.
+- `STYLE_RULES_FILE` / `ANTI_HALLUCINATION_FILE` / `VALIDATION_PROMPT_FILE` / `DETAILS_PROMPT_FILE` / `QUOTES_PROMPT_FILE` — the prompts (`prompts/*.txt`). They hold no campaign facts: the party, names and campaign rules come from the campaign context.
+- Every chunk call gets the party and the campaign's learned rules, the full session glossary (all canonical entity names + aliases + phonetic corrections) **and** the campaign background in its system prompt, plus the tail of the previous chunk for continuity. The glossary is deliberately not filtered by what the transcript contains — the names worth listing are exactly the ones the ASR mangles. The validation pass gets the glossary too, so it never "corrects" a canonical name back to its ASR spelling.
+- `CAMPAIGN_CONTEXT_FILE` — the campaign context exported by the wiki (see below). Empty or missing = run without names, party, background or hotwords (the status screen says so); a file with an unknown `schema_version` stops the run.
+- `TIMELINE_RECENT_SESSIONS` — only the last N timeline sessions are sent as AI context (default `10`; `0` = all). The full timeline grows unbounded and ancient sessions add nothing but tokens.
 
-The pipeline writes per-session artifacts to `OUTPUT_DIR/assets/sessions/<NNN>/`: `transcript.txt`, `transcript.json`, `transcript_enriched.txt` (see below), `draft0.md` (the validated summary draft — the deliverable), `validation_report.md` (unresolved fact-check findings), `recording_start.txt` (Craig's recording start unix timestamp — the shared t=0 for all timeline sources) and `chat_events.{json,txt}` (see below).
+The pipeline writes each session to `OUTPUT_DIR/<NNN>/` — see the session package below.
 
 ## Foundry chat events (timeline-anchored)
 
 The session `session<NN>.json` chat archive is distilled into `chat_events.json` + `chat_events.txt`: module noise (Tidbits/Plutonium banners) is dropped, HTML is flattened, dice rolls keep their formulas and totals via the structured Foundry/Beyond20 markup (`1d20 + 11 = 26`-style), and every message gets an `offset_secs` measured from **Craig's recording start** (parsed from `info.txt` inside the audio zip). That makes the transcript, the `[VISUAL]` screenshot anchors and the chat events all share one clock — a `[VISUAL 02:33:40]` scene and a `[02:33:40] Sydon (rzut): Cataclysmic Bolt…` chat line describe the same moment.
 
-Both files sit in the session assets dir for on-demand lookups during OotD refinement.
+Both files go into the session package for on-demand lookups in the wiki.
 
 ## Enriched transcript (one time-sorted file)
 
@@ -141,57 +138,44 @@ All three timeline sources are merged into a single `transcript_enriched.txt` in
 
 At equal offsets visual lines come before chat lines. The file is built whenever at least one annotation source exists (screenshots-only, chat-only, or both — it degrades gracefully); with neither, the plain transcript is used and no file is written. The enriched transcript is what the summary generation **and** the validation pass consume — chat events reach the Gemini calls inline, with chunk-window locality keeping context bounded. Quote extraction/verification deliberately stays on the plain `transcript.txt` so quote candidates are always actually spoken lines.
 
-## Handoff to the wiki (OotD)
+## The wiki (OotD): two files, one each way
 
-rpgnotes is the "transcription + draft-0 factory": it runs unattended (audio → transcript → chunked, validated Gemini summary), and the interactive prose refinement, fact-checking, and wiki work happens in the sibling `OotD` repo via Claude Code sessions. The end-to-end flow:
+rpgnotes runs unattended (audio → transcript → chunked, validated Gemini summary → details and quotes); the review, wikilinks and images happen in the sibling [OotD](https://github.com/karpiq24/OotD) repo. The two repos share exactly two files, each with a `schema_version` both sides check:
 
 ```
-audio (craig-*.flac.zip) + session*.json
-  → rpgnotes: per-speaker transcription → combined transcript.txt
-  → rpgnotes: chunked Gemini summary + validation pass
-              → draft0.md + validation_report.md
-  → OotD: /generate-session-recap-draft (refine mode, seeded with draft0.md)
-  → OotD: /finalize-session-recap → wikilinks, images, timeline, final recap
+OotD: scripts/export_context.py ──► campaign/campaign_context.json ──► rpgnotes (CAMPAIGN_CONTEXT_FILE)
+rpgnotes ──► OUTPUT_DIR/<NNN>/ + manifest.json ──► OotD: /import-session <N> ──► review ──► /finalize-session-recap
 ```
 
-There is no separate handoff/copy step: point `OUTPUT_DIR` directly at an OotD checkout's `content/` directory (e.g. `OUTPUT_DIR=/path/to/OotD/content`), and every artifact — `transcript.txt`, `transcript_enriched.txt`, `chat_log.json`, `chat_events.json`, `chat_events.txt`, `draft0.md`, `validation_report.md`, `quotes.json` — lands directly in `content/assets/sessions/<NNN>/`, exactly where `/generate-session-recap-draft` looks for it. rpgnotes no longer renders the final session note itself — structured details extraction and the final note assembly happen in OotD after the refine pass (only the manual workflow still renders the template locally).
+**Campaign context** (`CAMPAIGN_CONTEXT_FILE`, read by `src/rpgnotes/campaign.py`): the party, every entity name with its aliases, phonetic (ASR) corrections, rules learned from the user's edits, Whisper hotwords, the campaign summary and the timeline. OotD regenerates it after every finalized session, so corrections made to one draft reach the next one. rpgnotes never reads the wiki itself.
+
+**Session package** (`OUTPUT_DIR/<NNN>/`, described by `manifest.json` from `src/rpgnotes/manifest.py`):
+
+| File | Kind | What |
+|---|---|---|
+| `transcript.txt`, `transcript.json` | publish | Combined per-speaker transcript |
+| `transcript_enriched.txt` | publish | Transcript with `[VISUAL]`/`[CZAT]` lines (see above) |
+| `chat_log.json`, `chat_events.{json,txt}` | publish | Foundry chat log and its timeline-anchored events |
+| `visual_log.json` | publish | Screenshot captions |
+| `quotes.json` | publish | Verified quotes |
+| `draft0.md` | working | The validated narrative (`###` sections) |
+| `details.json` | working | Title, key events, NPCs, locations, items (derived from the draft) |
+| `validation_report.json` | working | Fact-check findings left for a human |
+
+`publish` files end up next to the session note on the public site, `working` files stay private. `manifest.json` also says whether the package is `complete` (draft, details, quotes and transcript present). Other files in the folder (`recording_start.txt`, `audio_source.txt`) are rpgnotes' own bookkeeping. After an import OotD writes `.imported` there, which the status screen reads.
 
 ## Session screenshots (optional visual context)
 
-With the Foundry recorder module this section is not needed: its map snapshots are used instead. The screen capture script below still works without the module.
+With the Foundry recorder module this is not needed: its map snapshots are used instead. Without it, `./run.sh capture` grabs the VTT screen during the game and the pipeline captions each frame into `[VISUAL HH:MM:SS] …` lines; setup, backends and flags are in [docs/screen-capture.md](docs/screen-capture.md).
 
-Capture the VTT screen during the session and the pipeline will interleave Gemini-captioned `[VISUAL HH:MM:SS] …` anchor lines into the transcript — hard evidence of scene changes, token positions, and handouts for the summarizer and fact-checker.
-
-**Before the session starts** (alongside starting Craig), run on the host:
-
-```bash
-./run.sh capture        # = python3 scripts/capture_session.py
-```
-
-Pick the monitor showing the VTT (never the one with Discord — only the selected region is ever written to disk), leave it running, stop with `Ctrl+C` after the session.
-
-To skip the picker, set `CAPTURE_MONITOR` (connector name like `DP-1`, or an EDID model substring like `LG`, so it survives moving cables) and optionally `CAPTURE_CROP=WxH+X+Y` in `.env` — a sub-region in that monitor's own pixels, e.g. only the Foundry page inside a maximized Firefox, without desktop panels, browser toolbars, bookmarks or the vertical-tabs column. Then a bare `./run.sh capture` needs no input. Measure the crop once from a `--once` test frame, and re-measure if the panel or browser layout changes (Firefox fullscreen/F11 hides the toolbars, so the crop would then cut into Foundry). Frames land in `SCREENSHOTS_DIR` (default `TEMP_DIR/screenshots`, i.e. `./temp/screenshots/`) as `shot_<unix_ts>.png` plus a `session_start.txt` timestamp; frames nearly identical to the previous kept one are dropped automatically. Restarting within 12 h resumes the same capture; a capture started later moves the old frames to `previous/` (one game kept as backup; `--fresh` forces this). At ingestion, frames taken over an hour before the Craig recording started are skipped as leftovers.
-
-Flags: `--interval N` (seconds between capture attempts, default 600 — D&D scenes change slowly and each kept frame costs a Gemini caption call, so 10 minutes is plenty; near-identical frames are still dropped immediately), `--monitor DP-1` / `--region WxH+X+Y` (skip the interactive picker), `--output-dir PATH`, `--dedupe-threshold F` (mean 0-255 gray diff, default 4.0), `--once` (single test frame).
-
-Backends are auto-detected: `grim`+`slurp` (wlroots Wayland), Spectacle (KDE Plasma, e.g. Fedora KDE — needs `spectacle` + ImageMagick, both preinstalled or `sudo dnf install spectacle ImageMagick`; no permission prompt, monitors listed via `kscreen-doctor`, works with mixed display scaling), the XDG desktop portal (GNOME Wayland; needs ImageMagick + `python3-dbus`/`python3-gi`), or `maim`/`scrot`/ImageMagick (X11). On GNOME Wayland, run this once so the portal stops asking for permission:
-
-```bash
-python3 scripts/capture_session.py --grant-portal-permission
-```
-
-(The GNOME portal and Spectacle briefly write a full-desktop frame — GNOME to your Pictures dir, Spectacle to a private temp dir; the script crops it to your region and deletes the original immediately. GNOME may flash the screen on each capture — that's normal.)
-
-**Ingestion** is enabled by setting `SCREENSHOTS_DIR` in `.env` (e.g. `./temp/screenshots`, where the capture script writes by default; clearing the temp dir at startup keeps this folder); leave it empty and the pipeline behaves exactly as before. Each kept frame gets one Gemini Flash multimodal caption (Polish, glossary-anchored; model via `VISUAL_CAPTION_MODEL`, defaults to `GEMINI_FLASH_MODEL`; per-frame captions cached in `TEMP_DIR`, resumable). Outputs land in `OUTPUT_DIR/assets/sessions/<NNN>/`: `visual_log.json` (`[{offset_secs, caption, path, is_key}]` — files named `shot_<ts>_key.png` are flagged as key moments); the captions are merged into `transcript_enriched.txt` (see the enriched transcript section), which is fed to the summarizer. `VISUAL_DEDUPE=false` disables the ingestion-side re-dedupe.
-
-Offsets are anchored to Craig's recording start (`recording_start.txt`, parsed from the audio zip's `info.txt`) when available — this survives starting the capture script earlier or later than the recording. `session_start.txt` is only the fallback anchor. `VISUAL_CROP=WxH+X+Y` cuts system/browser chrome (dock, tabs, clock) out of both the AI upload and the dedupe signature; disk originals are never modified.
+## Transcription
 
 How transcription works: each speaker's Craig track is run through Silero VAD, the speech regions are grouped into ≤30 s clips on the **original** timeline, and each clip is decoded by faster-whisper with word timestamps. Segments are split at pauses longer than 1.5 s, so speaker turns interleave at the right moments in `transcript.txt`. (faster-whisper's own `vad_filter` concatenates all speech into one stream; segment timestamps then smear across the removed silence — a 3-word line could span 7 minutes and land far out of order.) The combine step drops a segment only when Whisper's own rule says the window was silent (no-speech AND low confidence), plus repetition loops and known subtitle hallucinations, and logs how many words each reason removed.
 
 Key Whisper knobs:
 
-- `WHISPER_PROMPT_FILE` — **hotwords**, not a free-form prompt: the names in `prompts/whisper.txt` are prepended to *every* decode window (an `initial_prompt` only reaches the first 30 s window when previous-text conditioning is off, and is cut to its last ~223 tokens). The budget is ~150 tokens (~25–30 names), so list only names the ASR gets wrong; the startup log prints the packed list.
-- `WHISPER_HOTWORDS_RECENT_SESSIONS` — names linked in the last N `## Sesja` sections of `Timeline.md` fill the rest of the hotword budget, most-linked first (default `3`; `0` = file only).
+- **Hotwords**, not a free-form prompt: the campaign's hotwords list (`hotwords` in the campaign context; OotD keeps it in `campaign/whisper_hotwords.txt`) is prepended to *every* decode window (an `initial_prompt` only reaches the first 30 s window when previous-text conditioning is off, and is cut to its last ~223 tokens). The budget is ~150 tokens (~25–30 names), so list only names the ASR gets wrong; the startup log prints the packed list.
+- `WHISPER_HOTWORDS_RECENT_SESSIONS` — names linked in the last N timeline sessions fill the rest of the hotword budget, most-linked first (default `3`; `0` = file only).
 
 - `WHISPER_MODEL` — `large-v3` by default; smaller variants (`small`, `medium`, `distil-large-v3`) are faster and lighter.
 - `WHISPER_DEVICE` — `cuda` for GPU (NVIDIA or AMD), `cpu` to force CPU.
@@ -206,7 +190,9 @@ src/rpgnotes/
 ├── status.py          what the menu shows: session found, inputs, progress
 ├── foundry.py         read the Foundry recorder module's session file
 ├── config.py          pydantic-settings, .env-driven
-├── pipeline.py        full / transcription / manual workflows
+├── pipeline.py        full / transcription workflows
+├── campaign.py        read + render the wiki's campaign_context.json
+├── manifest.py        manifest.json of a session package
 ├── chatlog.py         find newest session*.json, extract number+date
 ├── audio.py           unzip the session's craig-*.flac.zip → per-speaker FLACs
 ├── speakers.py        Discord username → character name mapping
@@ -216,7 +202,6 @@ src/rpgnotes/
 ├── chatevents.py      distill Foundry chat log into timeline-anchored events
 ├── visual.py          screenshot dedupe/captioning ([VISUAL] entries)
 ├── enrich.py          merge speech + [VISUAL] + [CZAT] into one transcript
-├── template.py        render template.md → final markdown (manual workflow)
 ├── transcribe/
 │   ├── base.py        TranscriberProtocol + Segment shape
 │   ├── faster.py      faster-whisper backend (VAD clips, word-level splits)
@@ -239,9 +224,3 @@ pytest
 mypy src/
 ruff check .
 ```
-
-## Migrating from the old `main.py`
-
-- Delete `models/large-v3.pt` — that file is the openai-whisper format. faster-whisper redownloads `Systran/faster-whisper-large-v3` (CT2 format) into the same `models/` directory on first run.
-- `requirements.txt` and `requirements_amd.txt` are gone; everything lives in `pyproject.toml`.
-- `./run.sh` in a terminal shows the menu; `./run.sh full` runs without questions.

@@ -1,71 +1,61 @@
 from __future__ import annotations
 
-from pathlib import Path
-
+from rpgnotes.campaign import CampaignContext, Entity
 from rpgnotes.summarize.glossary import build_session_glossary
 
 
-def _make_context(tmp_path: Path) -> Path:
-    ctx = tmp_path / "context"
-    people = ctx / "02-People"
-    locations = ctx / "03-Locations"
-    people.mkdir(parents=True)
-    locations.mkdir(parents=True)
-    (people / "Sybolkorax.md").write_text("Smok.", encoding="utf-8")
-    (people / "Acastus.md").write_text("Król.", encoding="utf-8")
-    (people / "index.md").write_text("nie-encja", encoding="utf-8")
-    (locations / "Mytros.md").write_text("Stolica.", encoding="utf-8")
-    # Alias harvested from a wikilink elsewhere in the context.
-    (ctx / "Campaign_Context.md").write_text(
-        "Widzieli [[Sybolkorax|Sybol Korax]] nad miastem.", encoding="utf-8"
+def _context(**kwargs: object) -> CampaignContext:
+    return CampaignContext.model_validate(
+        {
+            "entities": {
+                "people": [
+                    {"name": "Sybolkorax", "aliases": ["Sybol Korax"]},
+                    {"name": "Acastus"},
+                ],
+                "locations": [{"name": "Mytros"}],
+            },
+            **kwargs,
+        }
     )
-    return ctx
 
 
-def test_glossary_includes_names_and_aliases(tmp_path: Path) -> None:
-    ctx = _make_context(tmp_path)
-    glossary = build_session_glossary(ctx, phonetic_corrections_file=None)
+def test_glossary_includes_names_and_aliases() -> None:
+    glossary = build_session_glossary(_context())
     assert "Sybolkorax" in glossary
     assert "Sybol Korax" in glossary  # alias
     assert "Acastus" in glossary
     assert "Mytros" in glossary
-    assert "index" not in glossary
+    assert glossary.index("## Postacie") < glossary.index("## Lokacje")
 
 
-def test_glossary_lists_every_name_regardless_of_transcript(tmp_path: Path) -> None:
-    # Mangled ASR forms ("Akastus", "Metros") must still get their canonical
-    # entry — those are exactly the names the glossary exists to fix.
-    ctx = _make_context(tmp_path)
-    glossary = build_session_glossary(ctx)
-    for name in ("Sybolkorax", "Acastus", "Mytros"):
-        assert name in glossary
-
-
-def test_glossary_includes_phonetic_corrections(tmp_path: Path) -> None:
-    ctx = _make_context(tmp_path)
-    phonetic = tmp_path / "phonetic_corrections.md"
-    phonetic.write_text("| Pytrion | **Raspytrion** |", encoding="utf-8")
-    glossary = build_session_glossary(ctx, phonetic_corrections_file=phonetic)
+def test_glossary_includes_phonetic_corrections() -> None:
+    glossary = build_session_glossary(
+        _context(phonetic_corrections="| Pytrion | **Raspytrion** |")
+    )
     assert "Raspytrion" in glossary
 
 
-def test_glossary_degrades_gracefully_when_sources_missing(tmp_path: Path) -> None:
-    empty_ctx = tmp_path / "nope"
-    missing_phonetic = tmp_path / "missing.md"
-    glossary = build_session_glossary(empty_ctx, phonetic_corrections_file=missing_phonetic)
-    assert glossary == ""
+def test_glossary_without_phonetic_corrections() -> None:
+    context = _context(phonetic_corrections="| Pytrion | **Raspytrion** |")
+    assert "Raspytrion" not in build_session_glossary(context, include_phonetic=False)
 
 
-def test_glossary_works_with_only_phonetic_file(tmp_path: Path) -> None:
-    phonetic = tmp_path / "phonetic_corrections.md"
-    phonetic.write_text("| Wersir | **Versir** |", encoding="utf-8")
-    glossary = build_session_glossary(tmp_path / "nope", phonetic_corrections_file=phonetic)
-    assert "Versir" in glossary
-    assert glossary.startswith("# Glosariusz sesji")
+def test_glossary_degrades_gracefully_when_context_empty() -> None:
+    assert build_session_glossary(CampaignContext()) == ""
 
 
-def test_glossary_without_aliases_lists_names_only(tmp_path: Path) -> None:
-    ctx = _make_context(tmp_path)
-    glossary = build_session_glossary(ctx, include_aliases=False)
+def test_glossary_works_with_only_phonetic_corrections() -> None:
+    glossary = build_session_glossary(CampaignContext(phonetic_corrections="| a | **B** |"))
+    assert "**B**" in glossary
+
+
+def test_glossary_without_aliases_lists_names_only() -> None:
+    glossary = build_session_glossary(_context(), include_aliases=False)
     assert "Sybolkorax" in glossary
     assert "Sybol Korax" not in glossary
+    assert "aliasy" not in glossary
+
+
+def test_glossary_ignores_unknown_categories() -> None:
+    context = CampaignContext(entities={"other": [Entity(name="Ktoś")]})
+    assert "Ktoś" not in build_session_glossary(context)

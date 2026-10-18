@@ -23,17 +23,15 @@ services:
     volumes:
       - ${DOWNLOADS_DIR:-./Downloads}:/data/downloads
       - ${OUTPUT_DIR:-./output}:/data/output
-      - ${CONTEXT_DIR:-./context}:/data/context
       - ./models:/data/models
       - ./prompts:/app/prompts:ro
-      - ./template.md:/app/template.md:ro
       - ./discord_speaker_mapping.json:/app/discord_speaker_mapping.json:ro
       # Session screenshots. Unset in .env falls back to the capture script's
       # default output dir.
       - ${SCREENSHOTS_DIR:-./temp/screenshots}:/data/screenshots
-      # Curated ASR-misspelling table living in the OotD repo; /dev/null when unset
-      # (reads as an empty file inside the container).
-      - ${PHONETIC_CORRECTIONS_FILE:-/dev/null}:/app/phonetic_corrections.md:ro
+      # campaign_context.json exported by the wiki; /dev/null when unset (reads
+      # as an empty file inside the container: the run goes on without context).
+      - ${CAMPAIGN_CONTEXT_FILE:-/dev/null}:/app/campaign_context.json:ro
       # Uncomment to persist temp state (transcriptions, interim AI files) across runs:
       - ./temp:/data/temp
     environment:
@@ -44,21 +42,18 @@ services:
       DOWNLOADS_DIR: /data/downloads
       HOST_DOWNLOADS_DIR: ${DOWNLOADS_DIR:-./Downloads}
       OUTPUT_DIR: /data/output
-      CONTEXT_DIR: /data/context
       TEMP_DIR: /data/temp
       WHISPER_CACHE_DIR: /data/models
       LOG_FILE: /data/temp/session_processor.log
       DISCORD_MAPPING_FILE: /app/discord_speaker_mapping.json
-      WHISPER_PROMPT_FILE: /app/prompts/whisper.txt
-      SUMMARY_PROMPT_FILE: /app/prompts/summary.txt
       QUOTES_PROMPT_FILE: /app/prompts/quotes.txt
+      DETAILS_PROMPT_FILE: /app/prompts/details.txt
       STYLE_RULES_FILE: /app/prompts/style_rules.txt
       ANTI_HALLUCINATION_FILE: /app/prompts/anti_hallucination.txt
       VALIDATION_PROMPT_FILE: /app/prompts/validation.txt
       VISUAL_CAPTION_PROMPT_FILE: /app/prompts/visual_caption.txt
-      PHONETIC_CORRECTIONS_FILE: /app/phonetic_corrections.md
+      CAMPAIGN_CONTEXT_FILE: /app/campaign_context.json
       SCREENSHOTS_DIR: /data/screenshots
-      TEMPLATE_FILE: /app/template.md
       # Tunables passed through from .env (defaults mirror src/rpgnotes/config.py)
       SUMMARY_CHUNK_LINES: ${SUMMARY_CHUNK_LINES:-800}
       # Empty = model default (recommended for Gemini 3+).

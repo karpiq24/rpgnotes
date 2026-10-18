@@ -79,7 +79,7 @@ def test_validate_summary_applies_error_fixes(
     second = ValidationReport(findings=[])
     fake = _mock_llm(monkeypatch, [first, second])
 
-    report_file = tmp_path / "validation_report.md"
+    report_file = tmp_path / "validation_report.json"
     fixed, _ = gemini.validate_summary(
         summary="Felicjan rzucił Fireball, po raz pierwszy w kampanii.",
         transcript_content="[Felicjan]\nRzucam zaklęcie ognia.",
@@ -90,9 +90,10 @@ def test_validate_summary_applies_error_fixes(
 
     assert fixed == "Felicjan rzucił zaklęcie ognia, po raz pierwszy w kampanii."
     assert fake.call_count == 2  # fix applied → one re-validation
-    report_text = report_file.read_text(encoding="utf-8")
-    assert "superlatyw" in report_text
-    assert "suspicious" in report_text
+    # Only the finding that could not be auto-applied is left for the human.
+    saved = ValidationReport.model_validate_json(report_file.read_text(encoding="utf-8"))
+    assert [f.severity for f in saved.findings] == ["suspicious"]
+    assert "superlatyw" in saved.findings[0].issue
 
 
 def test_validate_summary_remove_fix_deletes_text(
@@ -113,7 +114,7 @@ def test_validate_summary_remove_fix_deletes_text(
         transcript_content="…",
         validation_prompt="…",
         model_name="gemini-pro",
-        report_file=tmp_path / "report.md",
+        report_file=tmp_path / "report.json",
     )
     assert fixed == "Orestes zaatakował."
 
@@ -134,7 +135,7 @@ def test_validate_summary_stops_after_max_iterations(
         transcript_content="…",
         validation_prompt="…",
         model_name="gemini-pro",
-        report_file=tmp_path / "report.md",
+        report_file=tmp_path / "report.json",
         max_iterations=2,
     )
     assert fake.call_count == 2
@@ -150,7 +151,7 @@ def test_validate_summary_skips_ambiguous_quotes(
         )
     ]
     _mock_llm(monkeypatch, reports)
-    report_file = tmp_path / "report.md"
+    report_file = tmp_path / "report.json"
 
     fixed, _ = gemini.validate_summary(
         summary="Sydon przybył. Sydon odszedł.",
@@ -172,7 +173,7 @@ def test_validate_summary_puts_glossary_in_system_prompt(
         transcript_content="[DM]\nIdzie po was, Cant i main.",
         validation_prompt="FACT-CHECK",
         model_name="gemini-pro",
-        report_file=tmp_path / "report.md",
+        report_file=tmp_path / "report.json",
         glossary="GLOSARIUSZ: Kentimane",
     )
     system = fake.call_args.kwargs["system_instruction"]
@@ -184,7 +185,7 @@ def test_validate_summary_clean_draft_writes_empty_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _mock_llm(monkeypatch, [ValidationReport(findings=[])])
-    report_file = tmp_path / "report.md"
+    report_file = tmp_path / "report.json"
 
     fixed, report = gemini.validate_summary(
         summary="Wszystko się zgadza.",
@@ -195,7 +196,8 @@ def test_validate_summary_clean_draft_writes_empty_report(
     )
     assert fixed == "Wszystko się zgadza."
     assert report.findings == []
-    assert "Brak nierozwiązanych uwag" in report_file.read_text(encoding="utf-8")
+    saved = ValidationReport.model_validate_json(report_file.read_text(encoding="utf-8"))
+    assert saved.findings == []
 
 
 def test_validate_summary_sends_only_the_transcript_as_evidence(
@@ -213,7 +215,7 @@ def test_validate_summary_sends_only_the_transcript_as_evidence(
         transcript_content="[CZAT 00:00:30] Orestes (rzut): rzuty: 1d20 = 20",
         validation_prompt="…",
         model_name="gemini-pro",
-        report_file=tmp_path / "report.md",
+        report_file=tmp_path / "report.json",
     )
     content = fake.call_args.kwargs["contents"]
     assert content.endswith("TRANSKRYPCJA:\n[CZAT 00:00:30] Orestes (rzut): rzuty: 1d20 = 20")

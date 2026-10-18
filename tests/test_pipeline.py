@@ -7,8 +7,9 @@ from typing import Any
 import pytest
 
 import rpgnotes.pipeline as pipeline
+from rpgnotes.campaign import CampaignContext
 from rpgnotes.config import Settings
-from rpgnotes.summarize import QuotesData
+from rpgnotes.summarize import QuotesData, SessionData
 from rpgnotes.summarize.models import ValidationReport
 
 
@@ -16,15 +17,13 @@ def _make_settings(tmp_path: Path) -> Settings:
     prompts = tmp_path / "prompts"
     prompts.mkdir()
     for name in (
-        "whisper",
-        "summary",
         "quotes",
+        "details",
         "style_rules",
         "anti_hallucination",
         "validation",
     ):
         (prompts / f"{name}.txt").write_text(f"{name} prompt", encoding="utf-8")
-    (tmp_path / "template.md").write_text("$summary", encoding="utf-8")
     (tmp_path / "mapping.json").write_text("{}", encoding="utf-8")
     return Settings(
         _env_file=None,  # type: ignore[call-arg]
@@ -32,21 +31,19 @@ def _make_settings(tmp_path: Path) -> Settings:
         temp_dir=tmp_path / "temp",
         downloads_dir=tmp_path / "downloads",
         discord_mapping_file=tmp_path / "mapping.json",
-        whisper_prompt_file=prompts / "whisper.txt",
-        summary_prompt_file=prompts / "summary.txt",
         quotes_prompt_file=prompts / "quotes.txt",
+        details_prompt_file=prompts / "details.txt",
         style_rules_file=prompts / "style_rules.txt",
         anti_hallucination_file=prompts / "anti_hallucination.txt",
         validation_prompt_file=prompts / "validation.txt",
-        template_file=tmp_path / "template.md",
-        context_dir=tmp_path / "context",
+        campaign_context_file=tmp_path / "campaign_context.json",
         gemini_api_key="test-key",
         gemini_api_sleep_secs=0.0,
     )
 
 
 def _make_session_assets(settings: Settings, session_number: int = 7) -> Path:
-    session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
+    session_assets_dir = settings.session_dir(session_number)
     session_assets_dir.mkdir(parents=True, exist_ok=True)
     segments = [
         {"start": 1.0, "end": 2.0, "speaker": "Orestes", "text": "Witaj"},
@@ -74,7 +71,7 @@ def test_apply_enrichment_chat_only_builds_and_caches(tmp_path: Path) -> None:
     session_assets_dir = _make_session_assets(settings)
     _write_chat_events(session_assets_dir)
 
-    enriched = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7)
+    enriched = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7, CampaignContext())
 
     assert enriched.startswith("\n\n[CZAT PRZED NAGRANIEM] GM: Przed sesją.\n")
     assert "[CZAT 00:00:30] Orestes (rzut): rzuty: 1d20 = 20" in enriched
@@ -83,7 +80,7 @@ def test_apply_enrichment_chat_only_builds_and_caches(tmp_path: Path) -> None:
 
     # Resumable: an existing file is loaded verbatim, nothing is rebuilt.
     enriched_file.write_text("CACHED", encoding="utf-8")
-    assert pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7) == "CACHED"
+    assert pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7, CampaignContext()) == "CACHED"
 
 
 def test_apply_enrichment_without_sources_returns_plain_and_writes_nothing(
@@ -92,7 +89,7 @@ def test_apply_enrichment_without_sources_returns_plain_and_writes_nothing(
     settings = _make_settings(tmp_path)
     session_assets_dir = _make_session_assets(settings)
 
-    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7)
+    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7, CampaignContext())
 
     assert out == "PLAIN"
     assert not (session_assets_dir / "transcript_enriched.txt").exists()
@@ -103,7 +100,7 @@ def test_apply_enrichment_survives_broken_chat_events(tmp_path: Path) -> None:
     session_assets_dir = _make_session_assets(settings)
     (session_assets_dir / "chat_events.json").write_text("not-json", encoding="utf-8")
 
-    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7)
+    out = pipeline._apply_enrichment(settings, session_assets_dir, "PLAIN", 7, CampaignContext())
 
     assert out == "PLAIN"
     assert not (session_assets_dir / "transcript_enriched.txt").exists()
@@ -127,7 +124,7 @@ def test_generate_notes_returns_summary_and_quotes(
     monkeypatch.setattr(pipeline.llm, "configure", lambda **_kw: None)
     monkeypatch.setattr(pipeline.time, "sleep", lambda *_a: None)
     monkeypatch.setattr(
-        pipeline, "build_session_glossary", lambda **_kw: "GLOSSARY"
+        pipeline, "build_session_glossary", lambda *_a, **_kw: "GLOSSARY"
     )
 
     def fake_summary(**kwargs: Any) -> tuple[str, list[str]]:
@@ -139,12 +136,17 @@ def test_generate_notes_returns_summary_and_quotes(
         assert "chat_events" not in kwargs
         return "VALIDATED", ValidationReport(findings=[])
 
+    def fake_details(**kwargs: Any) -> SessionData:
+        calls["details_summary"] = kwargs["summary"]
+        return SessionData(title="T", events=[], npcs=[], locations=[], items=[])
+
     def fake_quotes(**kwargs: Any) -> QuotesData:
         calls["quotes_transcript"] = kwargs["transcript_content"]
         return QuotesData(quotes=["q"])
 
     monkeypatch.setattr(pipeline, "generate_summary_chunked", fake_summary)
     monkeypatch.setattr(pipeline, "validate_summary", fake_validate)
+    monkeypatch.setattr(pipeline, "generate_details", fake_details)
     monkeypatch.setattr(pipeline, "generate_quotes", fake_quotes)
     monkeypatch.setattr(pipeline, "verify_quotes", lambda quotes, _t: quotes)
 
@@ -156,6 +158,10 @@ def test_generate_notes_returns_summary_and_quotes(
     assert calls["validate_transcript"] == calls["summary_transcript"]
     assert calls["quotes_transcript"] == "PLAIN TRANSCRIPT"
     assert (session_assets_dir / "draft0.md").read_text(encoding="utf-8") == "VALIDATED"
+    # Details are derived from the validated draft and land next to it.
+    assert calls["details_summary"] == "VALIDATED"
+    details = json.loads((session_assets_dir / "details.json").read_text(encoding="utf-8"))
+    assert details["title"] == "T"
 
 
 def test_clearing_temp_keeps_screenshots_caches_and_logs(tmp_path: Path) -> None:
@@ -206,7 +212,7 @@ def test_prepare_audio_records_zip_and_reuses_it(tmp_path: Path) -> None:
     with zipfile.ZipFile(zip_path, "w") as zip_ref:
         zip_ref.writestr("1-dm.flac", b"fake")
         zip_ref.writestr("info.txt", "Start time:\t2026-07-07T16:48:24.265Z\n")
-    session_assets_dir = settings.assets_base_dir / "081"
+    session_assets_dir = settings.session_dir(81)
 
     pipeline._prepare_audio(settings, session_assets_dir)
     assert (session_assets_dir / "audio_source.txt").read_text().strip() == zip_path.name
@@ -227,12 +233,12 @@ def test_foundry_snapshots_replace_screenshot_dir(
     settings.screenshots_dir = str(tmp_path / "screens")
     settings.visual_crop = "100x100+0+0"
     (settings.downloads_dir / "session85.json").write_text(json.dumps(_export()), encoding="utf-8")
-    settings.visual_caption_prompt_file = settings.whisper_prompt_file
+    settings.visual_caption_prompt_file = settings.quotes_prompt_file
 
     pipeline._extract_foundry_snapshots(settings)
     seen: dict[str, Any] = {}
     monkeypatch.setattr(pipeline, "caption_screenshots", lambda **kw: seen.update(kw) or [])
-    pipeline._caption_session_screenshots(settings, settings.assets_base_dir / "085", "", 85)
+    pipeline._caption_session_screenshots(settings, settings.session_dir(85), "", 85)
 
     assert seen["screenshots_dir"] == settings.foundry_snapshots_dir
     assert seen["crop"] == ""

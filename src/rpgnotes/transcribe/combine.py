@@ -41,11 +41,11 @@ def _drop_reason(segment: dict[str, Any], text: str) -> str | None:
 def combine_transcriptions(
     session_number: int,
     transcriptions_dir: Path,
-    assets_base_dir: Path,
+    output_dir: Path,
     mapping_file: Path,
 ) -> Path | None:
     """Merge per-speaker JSON transcripts into a single sorted JSON + TXT pair."""
-    session_assets_dir = assets_base_dir / f"{session_number:03d}"
+    session_assets_dir = output_dir / f"{session_number:03d}"
     session_assets_dir.mkdir(parents=True, exist_ok=True)
     combined_json_path = session_assets_dir / "transcript.json"
     combined_txt_path = session_assets_dir / "transcript.txt"

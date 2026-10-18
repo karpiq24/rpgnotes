@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from rpgnotes.transcribe.hotwords import pack_hotwords, parse_hotwords_file, recent_timeline_names
+from rpgnotes.campaign import CampaignContext, TimelineSession
+from rpgnotes.transcribe.hotwords import pack_hotwords, recent_timeline_names
 
 
 def _count_words(text: str) -> int:
     return len(text.replace(",", " ").split())
-
-
-def test_parse_hotwords_file_ignores_comments_and_blank_entries() -> None:
-    text = "# komentarz\nArevon, Felicjan\n\nKentimane  # tytan\n, ,Sydon"
-    assert parse_hotwords_file(text) == ["Arevon", "Felicjan", "Kentimane", "Sydon"]
 
 
 def test_pack_hotwords_keeps_priority_order_within_budget() -> None:
@@ -33,20 +27,26 @@ def test_pack_hotwords_dedupes_and_skips_names_already_covered() -> None:
     assert packed == "Felicjan, Orion Xul"
 
 
-def test_recent_timeline_names_ranks_recent_links(tmp_path: Path) -> None:
-    (tmp_path / "Timeline.md").write_text(
-        "# Oś czasu\n\n"
-        "## Sesja 1\n* [[Stary NPC]] coś robi.\n\n"
-        "## Sesja 2\n* [[Kentimane]] i [[Sydon|Sydona]] oraz [[Sesja 1 - Start|wcześniej]].\n\n"
-        "## Sesja 3\n* [[Kentimane|Tytan]] atakuje, [[Nephele (Smok)|Nephele]] leci.\n",
-        encoding="utf-8",
+def _timeline(*links: list[str]) -> CampaignContext:
+    return CampaignContext(
+        timeline=[
+            TimelineSession(heading=f"## Sesja {n}", text="", links=names)
+            for n, names in enumerate(links, start=1)
+        ]
     )
-    names = recent_timeline_names(tmp_path, recent_sessions=2)
+
+
+def test_recent_timeline_names_ranks_recent_links() -> None:
+    context = _timeline(
+        ["Stary NPC"],
+        ["Kentimane", "Sydon"],
+        ["Kentimane", "Nephele (Smok)"],
+    )
+    names = recent_timeline_names(context, recent_sessions=2)
     assert names[0] == "Kentimane"  # linked twice
     assert set(names) == {"Kentimane", "Sydon", "Nephele"}  # parenthetical stripped
 
 
-def test_recent_timeline_names_degrades_gracefully(tmp_path: Path) -> None:
-    assert recent_timeline_names(tmp_path, recent_sessions=3) == []
-    (tmp_path / "Timeline.md").write_text("## Sesja 1\n* [[Sydon]]\n", encoding="utf-8")
-    assert recent_timeline_names(tmp_path, recent_sessions=0) == []
+def test_recent_timeline_names_degrades_gracefully() -> None:
+    assert recent_timeline_names(CampaignContext(), recent_sessions=3) == []
+    assert recent_timeline_names(_timeline(["Sydon"]), recent_sessions=0) == []

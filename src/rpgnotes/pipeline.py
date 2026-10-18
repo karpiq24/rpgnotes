@@ -4,37 +4,37 @@ import datetime as _dt
 import json
 import logging
 import shutil
-import sys
 import time
 from pathlib import Path
-from typing import TypeVar
-
-from pydantic import BaseModel, ValidationError
 
 from . import foundry, llm
 from .audio import find_audio_zip, read_recording_start, unzip_audio
+from .campaign import (
+    CampaignContext,
+    load_campaign_context,
+    render_background,
+    render_campaign_rules,
+)
 from .chatevents import ChatEvent, extract_chat_events, write_chat_events
 from .chatlog import find_chat_log, process_chat_log
 from .config import Settings
 from .enrich import build_enriched_transcript
+from .manifest import write_manifest
 from .summarize import (
     QuotesData,
-    SessionData,
     build_session_glossary,
+    generate_details,
     generate_quotes,
     generate_summary_chunked,
     validate_summary,
     verify_quotes,
 )
-from .template import save_summary_file
 from .transcribe import combine_transcriptions, transcribe_audio_dir
 from .transcribe.faster import FasterWhisperTranscriber
-from .transcribe.hotwords import parse_hotwords_file, recent_timeline_names
+from .transcribe.hotwords import recent_timeline_names
 from .visual import VisualEntry, caption_screenshots
 
 log = logging.getLogger("rpgnotes")
-
-_Model = TypeVar("_Model", bound=BaseModel)
 
 # Session number the temp work (audio, transcriptions, AI drafts) belongs to.
 TEMP_SESSION_FILE = "session.txt"
@@ -47,10 +47,9 @@ def _fallback_session_date() -> _dt.date:
     return today - _dt.timedelta(days=today.weekday())
 
 
-def _build_transcriber(settings: Settings) -> FasterWhisperTranscriber:
-    hotwords = parse_hotwords_file(settings.whisper_prompt_file.read_text(encoding="utf-8"))
-    hotwords += recent_timeline_names(
-        settings.context_dir, settings.whisper_hotwords_recent_sessions
+def _build_transcriber(settings: Settings, context: CampaignContext) -> FasterWhisperTranscriber:
+    hotwords = context.hotwords + recent_timeline_names(
+        context, settings.whisper_hotwords_recent_sessions
     )
     return FasterWhisperTranscriber(
         model_size=settings.whisper_model,
@@ -66,9 +65,11 @@ def _build_transcriber(settings: Settings) -> FasterWhisperTranscriber:
 def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date] | None:
     """Steps 1-4: chat log → unzip → transcribe → combine."""
     start = time.time()
+    # Read up front: a broken context file should stop the run before any work.
+    context = load_campaign_context(settings.campaign_context_file)
 
     log.info("\n[Step 1/4] Processing Chat Log…")
-    session_number, session_date = process_chat_log(settings.downloads_dir, settings.assets_base_dir)
+    session_number, session_date = process_chat_log(settings.downloads_dir, settings.output_dir)
     if session_number is None:
         log.error("Error processing chat log. Aborting workflow.")
         return None
@@ -80,7 +81,7 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     _extract_foundry_snapshots(settings)
 
     log.info("\n[Step 2/4] Preparing Audio Files…")
-    session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
+    session_assets_dir = settings.session_dir(session_number)
     _prepare_audio(settings, session_assets_dir)
     log.info("✅ Audio files are ready.")
     _save_chat_events(session_assets_dir)
@@ -89,7 +90,7 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     ok = transcribe_audio_dir(
         settings.audio_output_dir,
         settings.temp_transcriptions_dir,
-        lambda: _build_transcriber(settings),
+        lambda: _build_transcriber(settings, context),
     )
     if not ok:
         log.error("Transcription failed. Aborting workflow.")
@@ -100,13 +101,14 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     transcript_file = combine_transcriptions(
         session_number,
         settings.temp_transcriptions_dir,
-        settings.assets_base_dir,
+        settings.output_dir,
         settings.discord_mapping_file,
     )
     if not transcript_file:
         log.error("Error combining transcriptions. Aborting workflow.")
         return None
     log.info("✅ Transcriptions combined.")
+    _write_manifest(settings, session_number, session_date)
 
     elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start))
     log.info("\n✨ Transcription workflow completed in %s. ✨", elapsed)
@@ -272,6 +274,7 @@ def _apply_enrichment(
     session_assets_dir: Path,
     transcript_content: str,
     session_number: int,
+    context: CampaignContext,
 ) -> str:
     """Merge `[VISUAL]` captions and `[CZAT]` chat events into one enriched transcript.
 
@@ -289,7 +292,9 @@ def _apply_enrichment(
     # Captions only need canonical names to label tokens/handouts: no aliases
     # (Polish inflections) and no ASR phonetic table — ~2.5k instead of ~12.7k
     # tokens on every frame.
-    caption_glossary = build_session_glossary(context_dir=settings.context_dir, include_aliases=False)
+    caption_glossary = build_session_glossary(
+        context, include_aliases=False, include_phonetic=False
+    )
     entries = _caption_session_screenshots(
         settings, session_assets_dir, caption_glossary, session_number
     )
@@ -314,6 +319,15 @@ def _apply_enrichment(
         enriched_file,
     )
     return enriched
+
+
+def _write_manifest(settings: Settings, session_number: int, session_date: _dt.date) -> None:
+    write_manifest(
+        settings.session_dir(session_number),
+        session_number,
+        session_date,
+        {"summary": settings.gemini_pro_model, "flash": settings.gemini_flash_model},
+    )
 
 
 def _generate_notes(
@@ -341,22 +355,22 @@ def _generate_notes_with_client(
 
     summary_cache = settings.temp_dir / f"summary_session_{session_number}.txt"
     validated_cache = settings.temp_dir / f"validated_summary_session_{session_number}.txt"
+    details_cache = settings.temp_dir / f"details_session_{session_number}.json"
     quotes_cache = settings.temp_dir / f"quotes_session_{session_number}.json"
 
-    session_assets_dir = settings.assets_base_dir / f"{session_number:03d}"
+    session_assets_dir = settings.session_dir(session_number)
     draft_file = session_assets_dir / "draft0.md"
-    report_file = session_assets_dir / "validation_report.md"
+    report_file = session_assets_dir / "validation_report.json"
 
-    glossary = build_session_glossary(
-        context_dir=settings.context_dir,
-        phonetic_corrections_file=settings.phonetic_corrections_file,
-    )
+    context = load_campaign_context(settings.campaign_context_file)
+    glossary = build_session_glossary(context)
+    campaign_rules = render_campaign_rules(context)
 
     # Summary generation and validation see the enriched transcript ([VISUAL]
     # + [CZAT] anchors); quote extraction/verification stays on the plain one
     # so quote candidates are always actually spoken lines.
     transcript_content = _apply_enrichment(
-        settings, session_assets_dir, plain_transcript, session_number
+        settings, session_assets_dir, plain_transcript, session_number, context
     )
 
     try:
@@ -366,7 +380,6 @@ def _generate_notes_with_client(
             anti_hallucination=settings.anti_hallucination_file.read_text(encoding="utf-8"),
             glossary=glossary,
             model_name=settings.gemini_pro_model,
-            context_dir=settings.context_dir,
             temp_dir=settings.temp_dir,
             session_number=session_number,
             cache_file=summary_cache,
@@ -375,7 +388,8 @@ def _generate_notes_with_client(
             thinking_level=settings.gemini_thinking_level,
             polish_pass=settings.summary_polish_pass,
             polish_temperature=settings.summary_polish_temperature,
-            timeline_recent_sessions=settings.timeline_recent_sessions,
+            campaign_rules=campaign_rules,
+            background=render_background(context, settings.timeline_recent_sessions),
         )
     except Exception as e:
         log.error("Failed to generate session summary after retries: %s", e)
@@ -395,6 +409,7 @@ def _generate_notes_with_client(
                 model_name=settings.gemini_pro_model,
                 report_file=report_file,
                 glossary=glossary,
+                campaign_rules=campaign_rules,
                 thinking_level=settings.gemini_thinking_level,
                 max_iterations=settings.validation_max_passes,
             )
@@ -406,6 +421,22 @@ def _generate_notes_with_client(
     draft_file.write_text(summary, encoding="utf-8")
     log.info("Validated summary draft saved to %s", draft_file)
 
+    try:
+        details = generate_details(
+            summary=summary,
+            details_prompt=settings.details_prompt_file.read_text(encoding="utf-8"),
+            model_name=settings.gemini_flash_model,
+            cache_file=details_cache,
+            campaign_rules=campaign_rules,
+            glossary=build_session_glossary(context, include_phonetic=False),
+        )
+    except Exception as e:
+        log.error("Failed to generate session details: %s", e)
+        return None
+    (session_assets_dir / "details.json").write_text(
+        details.model_dump_json(indent=2), encoding="utf-8"
+    )
+
     if not quotes_cache.exists():
         log.info("Waiting %.0fs for API rate limit…", settings.gemini_api_sleep_secs)
         time.sleep(settings.gemini_api_sleep_secs)
@@ -415,6 +446,7 @@ def _generate_notes_with_client(
             quotes_prompt=settings.quotes_prompt_file.read_text(encoding="utf-8"),
             model_name=settings.gemini_flash_model,
             cache_file=quotes_cache,
+            campaign_rules=render_campaign_rules(context),
         )
     except Exception as e:
         log.error("Failed to extract quotes: %s", e)
@@ -432,77 +464,21 @@ def run_full_workflow(settings: Settings) -> None:
     result = run_transcription_workflow(settings)
     if not result:
         return
-    transcript_file, session_number, _session_date = result
+    transcript_file, session_number, session_date = result
 
     log.info("\n[Step 5/5] Generating Session Notes with AI…")
     notes = _generate_notes(settings, transcript_file, session_number)
+    _write_manifest(settings, session_number, session_date)
+    session_dir = settings.session_dir(session_number)
     if notes:
-        # The deliverable is draft0.md plus quotes.json etc., all written
-        # straight into OUTPUT_DIR/assets/sessions/<NNN>/ — the final session
-        # note is assembled in OotD after the refine pass, reading from there.
-        log.info("✅ AI-generated draft and quotes are ready in %s.", settings.assets_base_dir)
+        # The deliverable is the session folder in the outbox; the wiki imports
+        # it (manifest.json says what to publish) and assembles the note.
+        log.info("✅ Session package ready in %s. Import it in the wiki.", session_dir)
     else:
         log.warning("⚠️ AI note generation was skipped or failed.")
 
     elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start))
     log.info("\n✨ Full workflow completed in %s. ✨", elapsed)
-
-
-def run_manual_workflow(settings: Settings) -> None:
-    log.info("\n--- Manual Entry Workflow ---")
-
-    session_number, session_date = process_chat_log(settings.downloads_dir, settings.assets_base_dir)
-    if session_number is None:
-        log.error("Error processing chat log. Aborting.")
-        return
-    if session_date is None:
-        session_date = _fallback_session_date()
-        log.warning("Could not determine date. Defaulting to last Monday: %s", session_date)
-    log.info("✅ Session %d on %s", session_number, session_date)
-
-    print("\n[Step 2/4] Paste the session summary. Press Ctrl+D when done.")
-    session_summary = sys.stdin.read().strip()
-    if not session_summary:
-        log.error("Summary is empty. Aborting.")
-        return
-    log.info("✅ Summary received.")
-
-    session_data = _prompt_json(SessionData, label="session details")
-    if not session_data:
-        return
-    quotes_data = _prompt_json(QuotesData, label="quotes")
-    if not quotes_data:
-        return
-
-    save_summary_file(
-        settings.template_file,
-        settings.sessions_recap_dir,
-        session_summary,
-        session_data,
-        quotes_data,
-        session_number,
-        session_date,
-    )
-    log.info("\n✨ Manual entry workflow completed successfully. ✨")
-
-
-def _prompt_json(model_cls: type[_Model], label: str) -> _Model | None:
-    print(f"\nPaste the {label} JSON below. Press Ctrl+D when done.")
-    while True:
-        try:
-            sys.stdin = open("/dev/tty")  # noqa: SIM115 — must outlive this scope
-            raw = sys.stdin.read().strip()
-            if not raw:
-                log.error("%s JSON is empty. Aborting.", label)
-                return None
-            return model_cls.model_validate_json(raw)
-        except (json.JSONDecodeError, ValidationError) as e:
-            log.error("Data is invalid: %s", e)
-            choice = input("Try again? [y/n]: ").lower()
-            if choice not in {"y", "yes"}:
-                log.info("Aborting.")
-                return None
-            print("Paste the JSON again:")
 
 
 def clear_temp_work(settings: Settings) -> None:

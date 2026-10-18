@@ -10,27 +10,25 @@ from .logging_setup import setup_logging
 from .pipeline import (
     clear_temp_work,
     run_full_workflow,
-    run_manual_workflow,
     run_transcription_workflow,
 )
 from .status import SessionStatus, collect_status, format_status
 
 log = logging.getLogger("rpgnotes")
 
-_COMMANDS = ("menu", "full", "transcribe", "manual", "status")
+_COMMANDS = ("menu", "full", "transcribe", "status")
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="rpgnotes",
-        description="Turn a TTRPG session bundle (audio zip + chat log) into Markdown notes.",
+        description="Turn a TTRPG session bundle (audio zip + chat log) into a session package.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "commands:\n"
             "  menu        show the session found and ask what to do (default in a terminal)\n"
             "  full        transcribe + AI notes, no questions (default otherwise)\n"
             "  transcribe  transcription only, no Gemini calls\n"
-            "  manual      paste summary/details/quotes JSON by hand\n"
             "  status      show the session found and its progress, then exit"
         ),
     )
@@ -80,8 +78,6 @@ def _menu_actions(
     if resumable or status.draft:
         actions.append(("3", "Start over: redo this session from scratch",
                         lambda: _start_over(settings, status)))
-    actions.append(("m", "Enter notes manually (paste summary and JSON)",
-                    lambda: run_manual_workflow(settings)))
     actions.append(("q", "Quit", None))
     return actions
 
@@ -128,8 +124,6 @@ def main(argv: list[str] | None = None) -> int:
             run_full_workflow(settings)
         elif command == "transcribe":
             run_transcription_workflow(settings)
-        elif command == "manual":
-            run_manual_workflow(settings)
     except KeyboardInterrupt:
         print("\nStopped. Run again to resume where it left off.")
         return 130

@@ -30,6 +30,14 @@ Kompletność znaczy „opisz każdą scenę", a nie „dopisz szczegóły, któ
 9. **Nie używaj kwiecistych metafor, których nie rozumiesz.** "Struna katapulty"
    — katapulty nie mają strun. "Klątwa stoczyła się" — to nie była klątwa. Jeśli
    nie masz konkretnego obrazu w głowie, użyj prostszego sformułowania.
+10. **Nie wymyślaj miejsca akcji ani terenu.** Jeśli transkrypcja nie nazywa
+    wprost lokacji walki, nie osadzaj jej w żadnej znanej lokacji tylko
+    dlatego, że leży blisko. Pisz ogólnie ("pola pod miastem", "przedpole").
+    Nigdy nie buduj na zmyślonym terenie opisów sensorycznych ani nagłówków
+    sekcji.
+11. **Nie dopisuj skali ani porównań, których nikt nie podał.** Rozmiar rany,
+    zasięg ziejącego ognia, "broń wraca jak żywa" — jeśli nie padło przy stole,
+    opisz efekt bez wymiarów i bez metafory.
 
 # Narracja vs Mechanika
 
@@ -52,3 +60,11 @@ Twoim zadaniem jest oddać pierwsze, pomijając drugie.
 **Reguła kciuka:** jeśli zdanie zawiera trzy lub więcej liczb, prawdopodobnie
 opisujesz mechanikę. Zostaw co najwyżej jedną liczbę (np. liczbę obrażeń),
 resztę zamień na opis sensoryczny.
+
+Linie `[CZAT …]` mówią, **co się wydarzyło** (które zaklęcie, kto na kogo,
+trafienie czy pudło) — nie przepisuj z nich liczb do prozy. Nigdy nie pisz:
+wyników rzutów obronnych wobec ST ("wynik 21 vs ST 23"), surowych wyników kości
+("krytyczna jedynka na rzut obronny"), rzutu na atak wobec KP, poziomu
+kręgu/slotu zaklęcia ("na czwartym kręgu"), odległości w stopach ani terminów
+silnika gry (Legendary Resistance, Second Wind, atak okazyjny, tymczasowe PW).
+Opisz skutek, nie rzut.

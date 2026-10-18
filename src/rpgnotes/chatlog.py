@@ -47,7 +47,7 @@ def find_chat_log(source_dir: Path) -> ChatLogInfo | None:
 
 def process_chat_log(
     source_dir: Path,
-    assets_base_dir: Path,
+    output_dir: Path,
 ) -> tuple[int | None, _dt.date | None]:
     """Find the newest ``session*.json``, extract number+date, copy prettified into assets."""
     info = find_chat_log(source_dir)
@@ -56,7 +56,7 @@ def process_chat_log(
         return None, None
     newest_chat_log, session_number, session_date = info
 
-    session_assets_dir = assets_base_dir / f"{session_number:03d}"
+    session_assets_dir = output_dir / f"{session_number:03d}"
     session_assets_dir.mkdir(parents=True, exist_ok=True)
     output_filepath = session_assets_dir / "chat_log.json"
 
@@ -70,7 +70,7 @@ def process_chat_log(
         log.error("Error processing JSON in %s: %s", newest_chat_log, e)
         return session_number, session_date
     if is_foundry_export(data):
-        # Snapshots are extracted into temp; the wiki copy keeps their metadata only.
+        # Snapshots are extracted into temp; the outbox copy keeps their metadata only.
         data = without_snapshot_data(data)
     prettified = json.dumps(data, indent=2, ensure_ascii=False)
 

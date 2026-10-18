@@ -18,11 +18,7 @@ def _settings(tmp_path: Path) -> Settings:
         temp_dir=tmp_path / "temp",
         downloads_dir=tmp_path / "downloads",
         discord_mapping_file=tmp_path / "mapping.json",
-        whisper_prompt_file=tmp_path / "whisper.txt",
-        summary_prompt_file=tmp_path / "summary.txt",
         quotes_prompt_file=tmp_path / "quotes.txt",
-        template_file=tmp_path / "template.md",
-        context_dir=tmp_path / "context",
         screenshots_dir=str(tmp_path / "temp" / "screenshots"),
         host_downloads_dir="~/Pobrane",
     )
@@ -56,7 +52,7 @@ def test_status_lists_inputs_progress_and_stale_temp(tmp_path: Path) -> None:
         (shots / f"shot_{ts}.png").write_bytes(b"png")
     (settings.temp_dir / "session.txt").write_text("80\n", encoding="utf-8")
     (settings.audio_output_dir / "1-dm.flac").write_bytes(b"old")
-    assets = settings.assets_base_dir / "081"
+    assets = settings.session_dir(81)
     assets.mkdir(parents=True)
     (assets / "transcript.txt").write_text("x", encoding="utf-8")
 
@@ -69,6 +65,8 @@ def test_status_lists_inputs_progress_and_stale_temp(tmp_path: Path) -> None:
     assert "3 frames, 1 from an earlier session (skipped)" in text
     assert "GEMINI_API_KEY not set" in text
     assert "✓ transcript" in text and "· draft0.md" in text
+    assert "no campaign context" in text
+    assert "/import-session" not in text  # nothing to import yet
     assert "temp holds work for session 80" in text
 
 
@@ -117,3 +115,18 @@ def test_status_shows_foundry_recorder_file(tmp_path: Path) -> None:
     text = format_status(collect_status(settings), settings)
     assert "Foundry      session85.json: 14 events, 4 map snapshots" in text
     assert "Screenshots" not in text
+
+
+def test_status_says_when_the_wiki_has_not_imported_the_session(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    _drop_session(settings)
+    session_dir = settings.session_dir(81)
+    session_dir.mkdir(parents=True)
+    for name in ("transcript.txt", "draft0.md", "details.json", "quotes.json"):
+        (session_dir / name).write_text("x", encoding="utf-8")
+    text = format_status(collect_status(settings), settings)
+    assert "✓ details" in text
+    assert "not imported yet: run /import-session 81" in text
+
+    (session_dir / ".imported").write_text("", encoding="utf-8")
+    assert "✓ imported" in format_status(collect_status(settings), settings)

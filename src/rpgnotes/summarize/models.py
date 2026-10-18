@@ -43,6 +43,6 @@ class QuotesData(BaseModel):
     quotes: list[str] = Field(
         description=(
             "Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, "
-            'wraz z informacją, kto je wypowiedział. Np. \'Arevon: "Coś tu jest nie tak."\'.'
+            'wraz z informacją, kto je wypowiedział, w formacie \'Postać: "cytat"\'.'
         )
     )

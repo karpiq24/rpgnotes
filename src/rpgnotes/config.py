@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
 
+    # The outbox: one `<NNN>/` folder per session with a `manifest.json`. The
+    # wiki imports from here; rpgnotes never writes into the wiki itself.
     output_dir: Path
     temp_dir: Path
     downloads_dir: Path
@@ -25,18 +27,15 @@ class Settings(BaseSettings):
     host_downloads_dir: str = ""
 
     discord_mapping_file: Path
-    whisper_prompt_file: Path
-    summary_prompt_file: Path
     quotes_prompt_file: Path
-    template_file: Path
-    context_dir: Path
+    # `campaign_context.json` exported by the wiki: party, entity names, phonetic
+    # corrections, learned rules, Whisper hotwords, campaign summary, timeline.
+    campaign_context_file: Path | None = None
 
     style_rules_file: Path = Path("./prompts/style_rules.txt")
     anti_hallucination_file: Path = Path("./prompts/anti_hallucination.txt")
     validation_prompt_file: Path = Path("./prompts/validation.txt")
-    phonetic_corrections_file: Path = Path(
-        "../OotD/.agents/skills/rpg-summarizer/resources/phonetic_corrections.md"
-    )
+    details_prompt_file: Path = Path("./prompts/details.txt")
 
     # Session screenshots (Plan E). Unset/empty SCREENSHOTS_DIR disables the
     # feature entirely — the pipeline then runs exactly as before.
@@ -55,16 +54,16 @@ class Settings(BaseSettings):
     # Disk originals are never modified.
     visual_crop: str = ""
 
-    # How many trailing `## Sesja N` sections of Timeline.md to include in the
-    # campaign context sent to the summarizer (0 = whole file).
+    # How many of the most recent timeline sessions to include in the campaign
+    # context sent to the summarizer (0 = all).
     timeline_recent_sessions: int = 10
 
     summary_chunk_lines: int = 800
     # None = the model's default temperature. Google recommends leaving Gemini
     # 3+ models at their default; lower values can cause looping.
     summary_temperature: float | None = None
-    # Off by default: the OotD refine pass rewrites the prose anyway, and a
-    # full-draft rewrite is the most output-heavy (expensive) call.
+    # Off by default: a full-draft rewrite is the most output-heavy (expensive)
+    # call, and the draft is reviewed and edited by hand in the wiki anyway.
     summary_polish_pass: bool = False
     summary_polish_temperature: float | None = None
 
@@ -74,8 +73,8 @@ class Settings(BaseSettings):
     whisper_cache_dir: Path = Path("./models")
     whisper_language: str = "pl"
     whisper_vad: bool = True
-    # Names linked in the last N Timeline.md sessions are appended to the
-    # hotwords from `whisper_prompt_file` (0 = file only).
+    # Names linked in the last N timeline sessions are appended to the
+    # campaign's hotwords (0 = the campaign's list only).
     whisper_hotwords_recent_sessions: int = 3
 
     gemini_api_key: str | None = None
@@ -95,13 +94,9 @@ class Settings(BaseSettings):
 
     log_file: Path = Path("session_processor.log")
 
-    @cached_property
-    def sessions_recap_dir(self) -> Path:
-        return self.output_dir / "01-Sessions"
-
-    @cached_property
-    def assets_base_dir(self) -> Path:
-        return self.output_dir / "assets" / "sessions"
+    def session_dir(self, session_number: int) -> Path:
+        """The session's outbox folder, `OUTPUT_DIR/<NNN>/`."""
+        return self.output_dir / f"{session_number:03d}"
 
     @cached_property
     def audio_output_dir(self) -> Path:
@@ -135,11 +130,8 @@ class Settings(BaseSettings):
         for directory in (
             self.output_dir,
             self.temp_dir,
-            self.sessions_recap_dir,
-            self.assets_base_dir,
             self.audio_output_dir,
             self.temp_transcriptions_dir,
-            self.context_dir,
             self.processed_dir,
             self.whisper_cache_dir,
         ):

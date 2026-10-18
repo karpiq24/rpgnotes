@@ -6,9 +6,8 @@ import unicodedata
 from pathlib import Path
 
 from .. import llm
-from ..helpers import load_context_files
 from .chunker import is_speaker_line, split_transcript
-from .models import Finding, QuotesData, ValidationReport
+from .models import Finding, QuotesData, SessionData, ValidationReport
 
 log = logging.getLogger("rpgnotes")
 
@@ -85,7 +84,6 @@ def generate_summary_chunked(
     anti_hallucination: str,
     glossary: str,
     model_name: str,
-    context_dir: Path,
     temp_dir: Path,
     session_number: int,
     cache_file: Path,
@@ -94,7 +92,8 @@ def generate_summary_chunked(
     thinking_level: str | None = None,
     polish_pass: bool = True,
     polish_temperature: float | None = None,
-    timeline_recent_sessions: int = 0,
+    campaign_rules: str = "",
+    background: str = "",
     overlap_lines: int = 40,
 ) -> tuple[str, list[str]]:
     """Chunked map-reduce summary with a rolling context summary.
@@ -103,7 +102,8 @@ def generate_summary_chunked(
     boundaries. Chunks are summarized sequentially; each call receives the
     rolling summary of everything before it. NARRATIVE blocks are concatenated
     strictly in order. Per-chunk results are cached in `temp_dir` so the
-    pipeline stays resumable. The campaign context sits in the system prompt
+    pipeline stays resumable. The campaign rules (party, learned rules) and
+    the `background` (campaign summary + recent timeline) sit in the system prompt
     so every chunk (not just the first) can identify NPCs and places, and each
     chunk also sees the last `overlap_lines` lines of the previous chunk so
     events straddling a boundary keep their context. Returns
@@ -117,15 +117,21 @@ def generate_summary_chunked(
             rolling_summaries.append(rolling_file.read_text(encoding="utf-8"))
         return summary, rolling_summaries
 
-    general_context = load_context_files(context_dir, timeline_recent_sessions)
     context_block = (
-        f"# Kontekst kampanii (tło — nie opisuj go jako wydarzeń tej sesji)\n\n{general_context}"
-        if general_context.strip()
+        f"# Kontekst kampanii (tło — nie opisuj go jako wydarzeń tej sesji)\n\n{background}"
+        if background.strip()
         else ""
     )
     system_prompt = "\n\n".join(
         part.strip()
-        for part in (style_rules, anti_hallucination, glossary, context_block, _CHUNK_INSTRUCTIONS)
+        for part in (
+            style_rules,
+            anti_hallucination,
+            campaign_rules,
+            glossary,
+            context_block,
+            _CHUNK_INSTRUCTIONS,
+        )
         if part.strip()
     )
 
@@ -181,6 +187,7 @@ def generate_summary_chunked(
             model_name=model_name,
             style_rules=style_rules,
             anti_hallucination=anti_hallucination,
+            campaign_rules=campaign_rules,
             temperature=polish_temperature,
             thinking_level=thinking_level,
         )
@@ -198,12 +205,13 @@ def _polish_summary(
     style_rules: str,
     anti_hallucination: str,
     temperature: float | None,
+    campaign_rules: str = "",
     thinking_level: str | None = None,
 ) -> str:
     """One prose-polish pass. Instructed to change no facts, names, or order."""
     system_prompt = "\n\n".join(
         part.strip()
-        for part in (style_rules, anti_hallucination, _POLISH_INSTRUCTIONS)
+        for part in (style_rules, anti_hallucination, campaign_rules, _POLISH_INSTRUCTIONS)
         if part.strip()
     )
     log.info("Running final polish pass over the assembled summary…")
@@ -233,6 +241,7 @@ def validate_summary(
     model_name: str,
     report_file: Path,
     glossary: str = "",
+    campaign_rules: str = "",
     thinking_level: str | None = None,
     max_iterations: int = 2,
 ) -> tuple[str, ValidationReport]:
@@ -240,17 +249,18 @@ def validate_summary(
 
     Runs up to `max_iterations` validate → fix rounds. Findings with
     severity="error" whose quote occurs exactly once in the draft are applied
-    as string replacements; everything else is left for the human in a
-    Markdown report written to `report_file`. The session `glossary` goes into
-    the system prompt so the checker knows canonical names are correct even
-    when the transcript spells them the way the ASR heard them.
+    as string replacements; everything else is left for the human in a JSON
+    `ValidationReport` written to `report_file`. The session `glossary` and the
+    `campaign_rules` go into the system prompt so the checker knows canonical
+    names are correct even when the transcript spells them the way the ASR
+    heard them.
     `transcript_content` is expected to be
     the enriched transcript, so `[CZAT]` chat-event lines (exact rolls, damage
     numbers and who cast what) and `[VISUAL]` anchors already sit inline as
     hard evidence. Returns (fixed_summary, last_report).
     """
     system_prompt = "\n\n".join(
-        part.strip() for part in (validation_prompt, glossary) if part.strip()
+        part.strip() for part in (validation_prompt, campaign_rules, glossary) if part.strip()
     )
     current = summary
     report = ValidationReport(findings=[])
@@ -298,23 +308,12 @@ def validate_summary(
 
 
 def _write_validation_report(report_file: Path, findings: list[Finding]) -> None:
-    lines = ["# Raport walidacji podsumowania", ""]
-    if not findings:
-        lines.append("Brak nierozwiązanych uwag — wszystkie znalezione błędy naprawiono automatycznie.")
-    else:
-        lines.append("Poniższe uwagi wymagają ludzkiej weryfikacji:")
-        lines.append("")
-        for finding in findings:
-            lines.append(f"## [{finding.severity}] {finding.issue}")
-            lines.append("")
-            lines.append(f"> {finding.quote}")
-            if finding.suggested_fix:
-                lines.append("")
-                lines.append(f"**Sugerowana poprawka:** {finding.suggested_fix}")
-            lines.append("")
+    """The findings left for a human, as a `ValidationReport` JSON file."""
     report_file.parent.mkdir(parents=True, exist_ok=True)
-    report_file.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-    log.info("Validation report saved to %s", report_file)
+    report_file.write_text(
+        ValidationReport(findings=findings).model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    log.info("Validation report with %d open finding(s) saved to %s", len(findings), report_file)
 
 
 def _normalize_for_match(text: str) -> str:
@@ -411,6 +410,7 @@ def generate_quotes(
     quotes_prompt: str,
     model_name: str,
     cache_file: Path,
+    campaign_rules: str = "",
 ) -> QuotesData:
     """Extract memorable quotes from the transcript. Reads from `cache_file` if present."""
     if cache_file.exists():
@@ -425,11 +425,48 @@ def generate_quotes(
         model=model_name,
         contents=f"PEŁNA TRANSKRYPCJA:\n{transcript_content}",
         schema=QuotesData,
-        system_instruction=quotes_prompt,
+        system_instruction="\n\n".join(
+            part.strip() for part in (quotes_prompt, campaign_rules) if part.strip()
+        ),
     )
     log.info("Quotes extracted.")
 
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(data.model_dump_json(indent=2), encoding="utf-8")
     log.info("Interim quotes saved to %s", cache_file)
+    return data
+
+
+def generate_details(
+    *,
+    summary: str,
+    details_prompt: str,
+    model_name: str,
+    cache_file: Path,
+    campaign_rules: str = "",
+    glossary: str = "",
+) -> SessionData:
+    """Title, key events, NPCs, locations and items, derived from the final draft.
+
+    Reads from `cache_file` if present.
+    """
+    if cache_file.exists():
+        log.info("Existing session details found at %s. Loading them…", cache_file)
+        try:
+            return SessionData.model_validate_json(cache_file.read_text(encoding="utf-8"))
+        except Exception as e:
+            log.warning("Failed to load session details from %s: %s. Re-generating.", cache_file, e)
+
+    log.info("Generating session details (title, events, NPCs, locations, items)…")
+    data = llm.generate_structured(
+        model=model_name,
+        contents=f"PODSUMOWANIE SESJI:\n{summary}",
+        schema=SessionData,
+        system_instruction="\n\n".join(
+            part.strip() for part in (details_prompt, campaign_rules, glossary) if part.strip()
+        ),
+    )
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(data.model_dump_json(indent=2), encoding="utf-8")
+    log.info("Session details saved to %s", cache_file)
     return data

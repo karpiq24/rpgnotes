@@ -30,7 +30,7 @@ def is_foundry_export(data: object) -> bool:
 
 
 def without_snapshot_data(data: dict[str, Any]) -> dict[str, Any]:
-    """The export minus the embedded images (for the copy kept in the wiki)."""
+    """The export minus the embedded images (for the copy written to the outbox)."""
     snapshots = [
         {key: value for key, value in shot.items() if key != "data"}
         for shot in data.get("snapshots", [])

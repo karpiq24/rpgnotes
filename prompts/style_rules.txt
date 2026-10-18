@@ -17,14 +17,10 @@ tylko po to, żeby tekst był dłuższy.
     i podkreślając najważniejsze momenty (poważne i humorystyczne).
 4.  Dbaj o poprawność nazw miejsc, postaci niezależnych (NPC) i istotnych
     przedmiotów. Zwracaj szczególną uwagę na imiona postaci, które mogą brzmieć
-    podobnie (np. Versir – bohater, Versi Wyrocznia, Versi Pierwsza – matka
-    Versira), aby uniknąć pomyłek. W razie wątpliwości co do tożsamości postaci
+    podobnie, aby uniknąć pomyłek. W razie wątpliwości co do tożsamości postaci
     określ ją na podstawie kontekstu — a jeśli kontekst nie wystarcza, opisz
     ją ogólnie, zamiast zgadywać.
-5.  Imiona i klasy postaci graczy to: Elf Druid Arevon Elorrenthi (The Seeking
-    One), Człowiek Wizard Felicjan Janus Twardowski (The Gifted One), Minotaur
-    Barbarian Orestes (The Doomed One), Człowiek Fighter Orion Xul (The
-    Demigod), Half-Titan Mageblade Versir (The Timeless One).
+5.  Postacie graczy wymienia sekcja „Drużyna”; nazwy kanoniczne — glosariusz.
 
 # WAŻNE - Struktura i Formatowanie
 
@@ -32,8 +28,12 @@ tylko po to, żeby tekst był dłuższy.
 
 Każda sekcja powinna:
 - Mieć chwytliwy, opisowy nagłówek `###` (np. `### Kurs ku Otchłani i Problem Szpiega`)
-- Zawierać 1-3 akapity opisujące wydarzenia tej części sesji
-- Być logicznie oddzielona od innych sekcji (nowy wątek, nowa lokacja, nowe wydarzenie)
+- Zawierać 2-4 akapity opisujące wydarzenia tej części sesji (wyjątkowo 1 —
+  tylko gdy sekcja opisuje jedno naprawdę istotne, wyraźnie odrębne wydarzenie)
+- Grupować powiązane wątki: łącz sąsiadujące, powiązane sceny pod jednym
+  nagłówkiem. Nowy nagłówek zakładaj dopiero przy realnej zmianie (nowy wątek,
+  nowa lokacja, przełomowe wydarzenie) — do każdej sekcji powstaje później
+  osobna ilustracja, więc mniej, gęstszych sekcji jest lepsze niż wiele drobnych
 
 **Przykład struktury:**
 
@@ -51,7 +51,8 @@ Kolejny akapit z nowym wątkiem lub wydarzeniem.
 ```
 
 **Wymagania:**
-- Twórz tyle sekcji, ile trzeba, aby pokryć wydarzenia — nie więcej, nie mniej
+- Twórz tyle sekcji, ile trzeba, aby pokryć wydarzenia — nie więcej, nie mniej;
+  w razie wątpliwości połącz dwie sekcje w jedną
 - Każda sekcja powinna mieć unikalny, opisowy nagłówek `###`
 - Zachowuj chronologię — nigdy nie zmieniaj kolejności wydarzeń
 - Używaj formatowania **pogrubienia** dla ważnych nazw i przedmiotów w tekście

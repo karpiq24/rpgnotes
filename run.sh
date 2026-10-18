@@ -4,7 +4,7 @@
 #   ./run.sh capture        during the game: Foundry screenshots (Ctrl+C to stop)
 #   ./run.sh                after the game: shows the session it found, asks what to do
 #   ./run.sh status         just show what it found and how far it got
-#   ./run.sh full           transcribe + AI notes, no questions (also: transcribe, manual)
+#   ./run.sh full           transcribe + AI notes, no questions (also: transcribe)
 #   ./run.sh full --fresh   same, but redo the session from scratch instead of resuming
 #
 # Everything except `capture` runs in the container (docker or Podman); the
@@ -31,18 +31,19 @@ env_value() {
 # project owns; for the ones pointing elsewhere a missing path means a typo.
 screenshots=$(env_value SCREENSHOTS_DIR)
 mkdir -p temp models "${screenshots:-temp/screenshots}"
-for spec in DOWNLOADS_DIR:./Downloads OUTPUT_DIR:./output CONTEXT_DIR:./context; do
+for spec in DOWNLOADS_DIR:./Downloads OUTPUT_DIR:./output; do
   key=${spec%%:*}
   dir=$(env_value "$key")
-  if [[ -z $dir ]]; then
+  if [[ -z $dir || $dir == "${spec#*:}" ]]; then
     mkdir -p "${spec#*:}"
   elif [[ ! -d $dir ]]; then
     die "$key=$dir in .env does not exist."
   fi
 done
-corrections=$(env_value PHONETIC_CORRECTIONS_FILE)
-if [[ -n $corrections && ! -f $corrections ]]; then
-  die "PHONETIC_CORRECTIONS_FILE=$corrections in .env does not exist (leave it empty to skip)."
+context=$(env_value CAMPAIGN_CONTEXT_FILE)
+if [[ -n $context && ! -f $context ]]; then
+  die "CAMPAIGN_CONTEXT_FILE=$context in .env does not exist. Create it in the wiki:
+  uv run python scripts/export_context.py   (or leave CAMPAIGN_CONTEXT_FILE empty to run without)"
 fi
 
 export HOST_UID="$(id -u)"

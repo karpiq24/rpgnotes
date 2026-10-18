@@ -58,7 +58,6 @@ def test_chunked_summary_concatenates_in_order(
         anti_hallucination="ZAKAZY",
         glossary="GLOSARIUSZ",
         model_name="gemini-pro",
-        context_dir=tmp_path / "ctx",
         temp_dir=tmp_path / "temp",
         session_number=7,
         cache_file=tmp_path / "summary.txt",
@@ -89,7 +88,6 @@ def test_chunked_summary_passes_rolling_summary_forward(
         anti_hallucination="ZAKAZY",
         glossary="",
         model_name="gemini-pro",
-        context_dir=tmp_path / "ctx",
         temp_dir=tmp_path / "temp",
         session_number=7,
         cache_file=tmp_path / "summary.txt",
@@ -110,17 +108,14 @@ def test_chunked_summary_sends_campaign_context_with_every_chunk(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     fake = _fake_llm(monkeypatch)
-    ctx = tmp_path / "ctx"
-    ctx.mkdir()
-    (ctx / "Campaign_Context.md").write_text("KONTEKST KAMPANII XYZ", encoding="utf-8")
-
     gemini.generate_summary_chunked(
         transcript_content=_make_transcript(turns=30, lines_per_turn=10),
         style_rules="STYL",
         anti_hallucination="ZAKAZY",
         glossary="GLOSARIUSZ",
         model_name="gemini-pro",
-        context_dir=ctx,
+        background="KONTEKST KAMPANII XYZ",
+        campaign_rules="DRUŻYNA ABC",
         temp_dir=tmp_path / "temp",
         session_number=7,
         cache_file=tmp_path / "summary.txt",
@@ -132,6 +127,7 @@ def test_chunked_summary_sends_campaign_context_with_every_chunk(
     for call in fake.call_args_list:
         assert "KONTEKST KAMPANII XYZ" in call.kwargs["system_instruction"]
         assert "GLOSARIUSZ" in call.kwargs["system_instruction"]
+        assert "DRUŻYNA ABC" in call.kwargs["system_instruction"]
 
 
 def test_chunked_summary_resumes_from_chunk_caches(
@@ -146,7 +142,6 @@ def test_chunked_summary_resumes_from_chunk_caches(
         anti_hallucination="ZAKAZY",
         glossary="",
         model_name="gemini-pro",
-        context_dir=tmp_path / "ctx",
         temp_dir=temp_dir,
         session_number=7,
         chunk_lines=100,
@@ -175,7 +170,6 @@ def test_chunked_summary_returns_final_cache(
         anti_hallucination="…",
         glossary="",
         model_name="gemini-pro",
-        context_dir=tmp_path / "ctx",
         temp_dir=tmp_path / "temp",
         session_number=7,
         cache_file=cache,
@@ -199,7 +193,6 @@ def test_polish_pass_runs_when_enabled(monkeypatch: pytest.MonkeyPatch, tmp_path
         anti_hallucination="…",
         glossary="",
         model_name="gemini-pro",
-        context_dir=tmp_path / "ctx",
         temp_dir=tmp_path / "temp",
         session_number=1,
         cache_file=tmp_path / "summary.txt",

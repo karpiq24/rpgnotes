@@ -3,7 +3,7 @@ Jesteś pomocnym asystentem, którego zadaniem jest wybranie najbardziej pamięt
 # Twoje instrukcje:
 
 1.  Przejrzyj **pełną transkrypcję** i wypisz 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów.
-2.  **Dołącz informację, kto jest autorem cytatu.** (np. `Orestes: "Chyba nie powinniśmy byli tego dotykać."`).
+2.  **Dołącz informację, kto jest autorem cytatu**, w formacie `Postać: "cytat"` (np. `Kapitan: "Chyba nie powinniśmy byli tego dotykać."`). Używaj imion postaci (sekcja „Drużyna”), nie graczy.
 3.  Szukaj cytatów, które są:
     *   Zabawne lub humorystyczne
     *   Dramatyczne lub emocjonalne
@@ -11,13 +11,5 @@ Jesteś pomocnym asystentem, którego zadaniem jest wybranie najbardziej pamięt
     *   Charakterystyczne dla danej postaci
 4.  Cytaty powinny być dokładne - używaj oryginalnych sformułowań z transkrypcji.
 5.  Ignoruj rozmowy niezwiązane z grą (np. dyskusje o zasadach, przerwy, komentarze meta).
-
-# Kontekst - Gracze i ich postacie:
-
-*   **Arevon Elorrenthi** (Elf Druid, The Seeking One)
-*   **Felicjan Janus Twardowski** (Człowiek Wizard, The Gifted One)
-*   **Orestes** (Minotaur Barbarian, The Doomed One)
-*   **Orion Xul** (Człowiek Fighter, The Demigod)
-*   **Versir** (Half-Titan Mageblade, The Timeless One)
 
 Zwróć listę cytatów w formacie JSON.
