@@ -14,6 +14,7 @@ from rpgnotes.campaign import (
     load_campaign_context,
     render_background,
     render_campaign_rules,
+    with_prose_rules,
 )
 
 
@@ -85,3 +86,11 @@ def test_background_keeps_summary_and_recent_sessions() -> None:
     assert "## Sesja 1" not in background
     assert "## Sesja 2\n* wydarzenie 2" in background
     assert "## Sesja 1" in render_background(context, recent_sessions=0)
+
+
+def test_prose_rules_follow_the_style_prompt() -> None:
+    context = CampaignContext(prose_rules="# Zasady prozy kampanii\n\nKonkret.")
+    assert with_prose_rules("# Styl\n", context) == "# Styl\n\n# Zasady prozy kampanii\n\nKonkret."
+    assert with_prose_rules("# Styl\n", CampaignContext()) == "# Styl"
+    # Prose rules are for the summary only, not for every prompt.
+    assert "Konkret" not in render_campaign_rules(context)

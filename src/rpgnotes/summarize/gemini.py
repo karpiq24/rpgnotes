@@ -45,7 +45,9 @@ _POLISH_INSTRUCTIONS = """
 
 Dostajesz złożony z fragmentów draft podsumowania sesji RPG. Popraw wyłącznie
 styl i płynność prozy: usuń powtórzenia na łączeniach fragmentów, wyrównaj ton,
-popraw gramatykę i interpunkcję.
+popraw gramatykę i interpunkcję. Przepisz konstrukcje zakazane w „Zasadach
+prozy kampanii” (jeśli są w instrukcjach), o ile da się to zrobić bez zmiany
+faktów; komentarz narratora, który nie niesie faktu, możesz usunąć.
 
 ZAKAZY (bezwzględne):
 - NIE zmieniaj żadnych faktów, liczb, nazw własnych ani nazw zaklęć/przedmiotów.

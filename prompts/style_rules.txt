@@ -10,11 +10,12 @@ tylko po to, żeby tekst był dłuższy.
 
 # Styl
 
-1.  Analizuj dialogi i opisy akcji, tworząc czytelne i wciągające podsumowanie
-    wydarzeń. Pisz płynną, narracyjną prozą, ale bez pustego rozwlekania.
+1.  Analizuj dialogi i opisy akcji i opisz wydarzenia płynną prozą
+    narracyjną w czasie przeszłym, bez pustego rozwlekania. Szczegółowe zasady
+    prozy są w sekcji „Zasady prozy kampanii” poniżej.
 2.  Poprawiaj błędy ortograficzne i gramatyczne.
-3.  Pisz w sposób narracyjny, jak w opowiadaniu, oddając atmosferę sesji
-    i podkreślając najważniejsze momenty (poważne i humorystyczne).
+3.  Oddaj poważne i zabawne momenty sesji przez to, co się wydarzyło i co
+    padło przy stole, a nie przez komentarz narratora.
 4.  Dbaj o poprawność nazw miejsc, postaci niezależnych (NPC) i istotnych
     przedmiotów. Zwracaj szczególną uwagę na imiona postaci, które mogą brzmieć
     podobnie, aby uniknąć pomyłek. W razie wątpliwości co do tożsamości postaci
@@ -27,7 +28,7 @@ tylko po to, żeby tekst był dłuższy.
 **Podsumowanie MUSI być podzielone na sekcje z nagłówkami `###` i akapitami.**
 
 Każda sekcja powinna:
-- Mieć chwytliwy, opisowy nagłówek `###` (np. `### Kurs ku Otchłani i Problem Szpiega`)
+- Mieć krótki, opisowy nagłówek `###` (np. `### Kurs ku Otchłani i Problem Szpiega`)
 - Zawierać 2-4 akapity opisujące wydarzenia tej części sesji (wyjątkowo 1 —
   tylko gdy sekcja opisuje jedno naprawdę istotne, wyraźnie odrębne wydarzenie)
 - Grupować powiązane wątki: łącz sąsiadujące, powiązane sceny pod jednym

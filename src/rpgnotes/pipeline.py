@@ -14,6 +14,7 @@ from .campaign import (
     load_campaign_context,
     render_background,
     render_campaign_rules,
+    with_prose_rules,
 )
 from .chatevents import ChatEvent, extract_chat_events, write_chat_events
 from .chatlog import find_chat_log, process_chat_log
@@ -376,7 +377,9 @@ def _generate_notes_with_client(
     try:
         summary, _rolling_summaries = generate_summary_chunked(
             transcript_content=transcript_content,
-            style_rules=settings.style_rules_file.read_text(encoding="utf-8"),
+            style_rules=with_prose_rules(
+                settings.style_rules_file.read_text(encoding="utf-8"), context
+            ),
             anti_hallucination=settings.anti_hallucination_file.read_text(encoding="utf-8"),
             glossary=glossary,
             model_name=settings.gemini_pro_model,

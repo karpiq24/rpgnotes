@@ -55,6 +55,9 @@ class CampaignContext(BaseModel):
     phonetic_corrections: str = ""
     # Campaign-specific rules learned from the user's edits (harvest loop).
     learned_rules: str = ""
+    # The wiki's prose rules for session summaries (campaign/proza.md, its
+    # shared and summary sections). Only the summary and polish prompts get them.
+    prose_rules: str = ""
     # Names the ASR gets wrong, in priority order.
     hotwords: list[str] = Field(default_factory=list)
     campaign_context: str = ""
@@ -107,6 +110,11 @@ def render_party(context: CampaignContext) -> str:
 def render_learned_rules(context: CampaignContext) -> str:
     rules = context.learned_rules.strip()
     return f"# Reguły tej kampanii\n\n{rules}" if rules else ""
+
+
+def with_prose_rules(style_rules: str, context: CampaignContext) -> str:
+    """The summary style prompt followed by the campaign's prose rules, if any."""
+    return "\n\n".join(part.strip() for part in (style_rules, context.prose_rules) if part.strip())
 
 
 def render_campaign_rules(context: CampaignContext) -> str:
