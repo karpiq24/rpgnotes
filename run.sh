@@ -60,4 +60,36 @@ else
   docker compose build rpgnotes
 fi
 
-exec docker compose run --rm rpgnotes "$@"
+# Session packages that are complete but not in the wiki yet (or changed since
+# their import): with WIKI_DIR set, stage each one there and push it, so the
+# draft waits on every workstation. No session note is created: /import-session
+# does that later.
+push_to_wiki() {
+  local wiki outbox
+  wiki=$(env_value WIKI_DIR)
+  [[ -n $wiki ]] || return 0
+  [[ -f $wiki/scripts/import_session.py ]] || { echo "✗ WIKI_DIR=$wiki has no scripts/import_session.py" >&2; return 1; }
+  outbox=$(realpath "$(env_value OUTPUT_DIR)" 2>/dev/null || realpath output)
+  python3 - "$outbox" <<'PY' | while read -r number; do
+import json, pathlib, sys
+for folder in sorted(pathlib.Path(sys.argv[1]).glob("[0-9][0-9][0-9]")):
+    manifest, marker = folder / "manifest.json", folder / ".imported"
+    try:
+        complete = json.loads(manifest.read_text(encoding="utf-8")).get("complete")
+    except (OSError, ValueError):
+        continue
+    if complete and (not marker.exists() or marker.stat().st_mtime < manifest.stat().st_mtime):
+        print(int(folder.name))
+PY
+    echo "Wiki: staging session $number in $wiki and pushing it…"
+    (cd "$wiki" && uv run python scripts/import_session.py "$number" --stage --push --outbox "$outbox") \
+      || echo "✗ Wiki import of session $number failed; run it by hand: cd $wiki && uv run python scripts/import_session.py $number --stage --push" >&2
+  done
+}
+
+status=0
+docker compose run --rm rpgnotes "$@" || status=$?
+case "${1:-menu}" in
+  menu|full|--fresh) [[ $status -eq 0 ]] && push_to_wiki ;;
+esac
+exit $status

@@ -126,7 +126,9 @@ def test_status_says_when_the_wiki_has_not_imported_the_session(tmp_path: Path) 
         (session_dir / name).write_text("x", encoding="utf-8")
     text = format_status(collect_status(settings), settings)
     assert "✓ details" in text
-    assert "not imported yet: run /import-session 81" in text
+    assert "not staged yet: ./run.sh stages and pushes it" in text
 
     (session_dir / ".imported").write_text("", encoding="utf-8")
-    assert "✓ imported" in format_status(collect_status(settings), settings)
+    assert "✓ staged in the wiki: /import-session 81" in format_status(
+        collect_status(settings), settings
+    )

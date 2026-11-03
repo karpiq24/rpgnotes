@@ -194,15 +194,23 @@ def format_status(status: SessionStatus, settings: Settings) -> str:
         f"{_mark(status.draft)} draft0.md   {_mark(status.details)} details   "
         f"{_mark(status.quotes)} quotes"
     )
+    # `.imported` is written when the wiki stages the package (./run.sh does it
+    # after a run when WIKI_DIR is set); /import-session then builds the note.
     if status.imported:
-        lines.append("  Wiki         ✓ imported")
+        lines.append(
+            f"  Wiki         ✓ staged in the wiki: /import-session {status.session_number} "
+            "builds the note"
+        )
     elif status.imported is False:
         lines.append(
-            f"  Wiki         changed since the last import: run /import-session "
-            f"{status.session_number} again"
+            "  Wiki         changed since it was staged: ./run.sh stages it again when it "
+            "finishes (WIKI_DIR)"
         )
     elif status.draft and status.details and status.quotes:
-        lines.append(f"  Wiki         not imported yet: run /import-session {status.session_number}")
+        lines.append(
+            "  Wiki         not staged yet: ./run.sh stages and pushes it when it finishes "
+            "(WIKI_DIR in .env)"
+        )
     if status.tracks and status.transcribed_tracks < status.tracks:
         lines.append(
             f"  Resuming     {status.transcribed_tracks}/{status.tracks} audio tracks "

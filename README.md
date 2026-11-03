@@ -15,7 +15,7 @@ $EDITOR .env                    # set GEMINI_API_KEY at minimum
 ./run.sh                        # first run builds the image, then shows the menu
 ```
 
-That's it. Each session's package ends up in `OUTPUT_DIR/<NNN>/` (default `./output/`); in OotD, `/import-session <N>` picks it up from there. rpgnotes never writes into the wiki.
+That's it. Each session's package ends up in `OUTPUT_DIR/<NNN>/` (default `./output/`). With `WIKI_DIR` set, `./run.sh` then has the wiki stage it (`content/assets/sessions/<NNN>/`, commit "<N> init", push), so it is on every workstation; `/import-session <N>` in OotD builds the session note from it later. No note is created automatically, so nothing new appears on the site.
 
 ## Commands
 
@@ -144,7 +144,7 @@ rpgnotes runs unattended (audio → transcript → chunked, validated Gemini sum
 
 ```
 OotD: scripts/export_context.py ──► campaign/campaign_context.json ──► rpgnotes (CAMPAIGN_CONTEXT_FILE)
-rpgnotes ──► OUTPUT_DIR/<NNN>/ + manifest.json ──► OotD: /import-session <N> ──► review ──► /finalize-session-recap
+rpgnotes ──► OUTPUT_DIR/<NNN>/ + manifest.json ──► ./run.sh: OotD import_session.py --stage --push ──► /import-session <N> ──► review ──► /finalize-session-recap
 ```
 
 **Campaign context** (`CAMPAIGN_CONTEXT_FILE`, read by `src/rpgnotes/campaign.py`): the party, every entity name with its aliases, phonetic (ASR) corrections, rules learned from the user's edits, Whisper hotwords, the campaign summary and the timeline. OotD regenerates it after every finalized session, so corrections made to one draft reach the next one. rpgnotes never reads the wiki itself.
