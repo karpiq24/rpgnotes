@@ -21,6 +21,12 @@ _LOGPROB_THRESHOLD = -1.0
 _NO_SPEECH_THRESHOLD = 0.6
 # A window still above this after every temperature fallback is a repetition loop.
 _COMPRESSION_RATIO_THRESHOLD = 2.4
+# Text decoded over noise: the VAD barely heard speech under the segment AND
+# Whisper was unsure of its words. Calibrated on hand-labeled session 85
+# excerpts: catches most outro hallucinations not on the blocklist, at the cost
+# of a few bare interjections ("No.", "O!").
+_SPEECH_PROB_THRESHOLD = 0.4
+_WORD_PROB_THRESHOLD = 0.5
 
 
 def _drop_reason(segment: dict[str, Any], text: str) -> str | None:
@@ -35,6 +41,11 @@ def _drop_reason(segment: dict[str, Any], text: str) -> str | None:
         return "repetition"
     if is_hallucination(text):
         return "hallucination"
+    if (
+        segment.get("speech_prob", 1.0) < _SPEECH_PROB_THRESHOLD
+        and segment.get("word_prob", 1.0) < _WORD_PROB_THRESHOLD
+    ):
+        return "noise"
     return None
 
 

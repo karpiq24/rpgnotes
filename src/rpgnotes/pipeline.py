@@ -18,6 +18,7 @@ from .campaign import (
 )
 from .chatevents import ChatEvent, extract_chat_events, write_chat_events
 from .chatlog import find_chat_log, process_chat_log
+from .claude_captions import export_caption_tasks
 from .config import Settings
 from .enrich import build_enriched_transcript
 from .manifest import write_manifest
@@ -48,9 +49,29 @@ def _fallback_session_date() -> _dt.date:
     return today - _dt.timedelta(days=today.weekday())
 
 
-def _build_transcriber(settings: Settings, context: CampaignContext) -> FasterWhisperTranscriber:
-    hotwords = context.hotwords + recent_timeline_names(
-        context, settings.whisper_hotwords_recent_sessions
+def _foundry_session_names(session_assets_dir: Path) -> tuple[list[str], list[str]]:
+    """(people, scenes) from the session's Foundry export (`chat_log.json`), else empty."""
+    try:
+        data = json.loads((session_assets_dir / "chat_log.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [], []
+    return foundry.session_names(data) if foundry.is_foundry_export(data) else ([], [])
+
+
+def _build_transcriber(
+    settings: Settings, context: CampaignContext, session_assets_dir: Path
+) -> FasterWhisperTranscriber:
+    # Campaign list first (party, key names), then the people and scenes this
+    # session put on screen, then names linked in recent sessions; packed to a
+    # token budget, so the tail is what gets cut. Scenes before recent names:
+    # with them last, "Vallus Chambers" was cut and "Vallus" (said 7 times in
+    # the test excerpts) came out as "Walus".
+    people, scenes = _foundry_session_names(session_assets_dir)
+    hotwords = (
+        context.hotwords
+        + people
+        + scenes
+        + recent_timeline_names(context, settings.whisper_hotwords_recent_sessions)
     )
     return FasterWhisperTranscriber(
         model_size=settings.whisper_model,
@@ -79,7 +100,7 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
         log.warning("Could not determine date. Defaulting to last Monday: %s", session_date)
     log.info("✅ Session %d on %s", session_number, session_date)
     _claim_temp_for_session(settings, session_number)
-    _extract_foundry_snapshots(settings)
+    extract_foundry_snapshots(settings)
 
     log.info("\n[Step 2/4] Preparing Audio Files…")
     session_assets_dir = settings.session_dir(session_number)
@@ -91,7 +112,7 @@ def run_transcription_workflow(settings: Settings) -> tuple[Path, int, _dt.date]
     ok = transcribe_audio_dir(
         settings.audio_output_dir,
         settings.temp_transcriptions_dir,
-        lambda: _build_transcriber(settings, context),
+        lambda: _build_transcriber(settings, context, session_assets_dir),
     )
     if not ok:
         log.error("Transcription failed. Aborting workflow.")
@@ -163,7 +184,7 @@ def _save_recording_start(session_assets_dir: Path, zip_path: Path | None) -> No
     log.info("Recording start %d saved to %s", started, anchor_file)
 
 
-def _extract_foundry_snapshots(settings: Settings) -> None:
+def extract_foundry_snapshots(settings: Settings) -> None:
     """Unpack the map snapshots embedded in a Foundry recorder export into temp."""
     info = find_chat_log(settings.downloads_dir)
     if info is None:
@@ -229,6 +250,37 @@ def _load_chat_events(session_assets_dir: Path) -> list[ChatEvent]:
         return []
 
 
+def screenshot_source(settings: Settings) -> tuple[Path, str] | None:
+    """(folder, crop geometry) of the session's frames: the Foundry recorder's map
+    snapshots, else SCREENSHOTS_DIR; None when there are none."""
+    if any(settings.foundry_snapshots_dir.glob("shot_*")):
+        # Canvas renders have no desktop or browser chrome to crop away.
+        return settings.foundry_snapshots_dir, ""
+    screenshots_dir = settings.resolved_screenshots_dir
+    if screenshots_dir is None:
+        return None
+    if not screenshots_dir.is_dir():
+        log.warning("SCREENSHOTS_DIR %s does not exist. Skipping visual context.", screenshots_dir)
+        return None
+    return screenshots_dir, settings.visual_crop
+
+
+def export_claude_captions(settings: Settings, session_number: int) -> int:
+    """Prepare the frames still missing a caption for /caption-frames. Returns how many."""
+    source = screenshot_source(settings)
+    if source is None:
+        log.info("No map snapshots or screenshots for session %d.", session_number)
+        return 0
+    screenshots_dir, crop = source
+    return export_caption_tasks(
+        settings,
+        session_number,
+        screenshots_dir,
+        crop,
+        _load_recording_start(settings.session_dir(session_number)),
+    )
+
+
 def _caption_session_screenshots(
     settings: Settings,
     session_assets_dir: Path,
@@ -239,22 +291,19 @@ def _caption_session_screenshots(
 
     Best-effort: [] when there are none.
     """
-    crop = settings.visual_crop
-    screenshots_dir = settings.resolved_screenshots_dir
-    if any(settings.foundry_snapshots_dir.glob("shot_*")):
-        # Canvas renders have no desktop or browser chrome to crop away.
-        screenshots_dir, crop = settings.foundry_snapshots_dir, ""
-    if screenshots_dir is None:
+    source = screenshot_source(settings)
+    if source is None:
         return []
-    if not screenshots_dir.is_dir():
-        log.warning("SCREENSHOTS_DIR %s does not exist. Skipping visual context.", screenshots_dir)
-        return []
+    screenshots_dir, crop = source
     try:
         return caption_screenshots(
             screenshots_dir=screenshots_dir,
             caption_prompt=settings.visual_caption_prompt_file.read_text(encoding="utf-8"),
             glossary=glossary,
-            model_name=settings.resolved_visual_caption_model,
+            model_name=(
+                None if settings.visual_captioner == "claude"
+                else settings.resolved_visual_caption_model
+            ),
             temp_dir=settings.temp_dir,
             session_number=session_number,
             visual_log_file=session_assets_dir / "visual_log.json",
@@ -468,6 +517,17 @@ def run_full_workflow(settings: Settings) -> None:
     if not result:
         return
     transcript_file, session_number, session_date = result
+
+    if settings.visual_captioner == "claude":
+        enriched = settings.session_dir(session_number) / "transcript_enriched.txt"
+        uncaptioned = 0 if enriched.exists() else export_claude_captions(settings, session_number)
+        if uncaptioned:
+            log.warning(
+                "\n⏸  %d map snapshot(s) need captions before the AI notes. In Claude Code run "
+                "/caption-frames, then run this again (VISUAL_CAPTIONER=claude).",
+                uncaptioned,
+            )
+            return
 
     log.info("\n[Step 5/5] Generating Session Notes with AI…")
     notes = _generate_notes(settings, transcript_file, session_number)

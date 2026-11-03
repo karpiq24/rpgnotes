@@ -16,6 +16,18 @@ from rpgnotes.hallucination import HALLUCINATION_BLOCKLIST, is_hallucination
         "[Muzyka]",
         "(music)",
         "Some intro... amara.org community ...some outro",
+        # Seen in session 85: diacritics dropped or varied, film end cards.
+        "Dziękuje za oglądanie!",
+        "Wielkie dzięki i do zobaczenia w kolejnych odcinkach!",
+        "Dobra, to wszystko na dzisiaj, do zobaczenia w kolejnym odcinku.",
+        "Wszystkie prawa zastrzeżone.",
+        "Zdjęcia i montaż",
+        "KONIEC!",
+        "Yyyyyyyyyyyyyy",
+        "Dziękuję za uwagę.",
+        "Ã¢â‚¬Â",
+        "Napisy- WYTFURNIA.PL",
+        "Wielkie dzięki i do zobaczenia!",
     ],
 )
 def test_known_hallucinations_match(text: str) -> None:
@@ -28,6 +40,9 @@ def test_known_hallucinations_match(text: str) -> None:
         "Dobra, atakuję smoka mieczem.",
         "Wchodzę do tawerny.",
         "I cast fireball at the goblin.",
+        "Ledwo żeśmy przyszli i koniec.",
+        "Atakuję, a potem uciekam.",
+        "Yyy, nie wiem.",
         "",
     ],
 )

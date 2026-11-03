@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import cached_property
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -41,6 +42,10 @@ class Settings(BaseSettings):
     # feature entirely — the pipeline then runs exactly as before.
     screenshots_dir: str | None = None
     visual_caption_model: str | None = None  # defaults to `gemini_flash_model`
+    # Who describes the map snapshots: "gemini" (the pipeline calls Gemini
+    # Flash) or "claude" (`captions-export`, then /caption-frames in a Claude
+    # Code session, then `captions-import`; the pipeline makes no caption calls).
+    visual_captioner: Literal["gemini", "claude"] = "gemini"
     visual_dedupe: bool = True
     visual_caption_prompt_file: Path = Path("./prompts/visual_caption.txt")
     # Frames are downscaled to this long-edge size and re-encoded as JPEG for
@@ -110,6 +115,11 @@ class Settings(BaseSettings):
     def foundry_snapshots_dir(self) -> Path:
         """Map snapshots unpacked from a Foundry recorder export."""
         return self.temp_dir / "foundry_snapshots"
+
+    @cached_property
+    def claude_captions_dir(self) -> Path:
+        """Frames and tasks for captioning in a Claude Code session (/caption-frames)."""
+        return self.temp_dir / "claude_captions"
 
     @cached_property
     def processed_dir(self) -> Path:

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from rpgnotes.transcribe.base import Segment, TranscriberProtocol
-from rpgnotes.transcribe.faster import group_speech_clips, split_on_pauses
+from rpgnotes.transcribe.faster import group_speech_clips, mean_speech_prob, split_on_pauses
 from rpgnotes.transcribe.runner import transcribe_audio_dir
 
 
@@ -130,8 +130,12 @@ def test_group_speech_clips_empty() -> None:
 
 
 def test_split_on_pauses_splits_at_long_gaps() -> None:
-    words = [(0.0, 0.4, " Idę"), (0.5, 0.9, " dalej."), (5.0, 5.4, " Atakuję!")]
-    assert split_on_pauses(words, max_pause=1.5) == [
-        (0.0, 0.9, " Idę dalej."),
-        (5.0, 5.4, " Atakuję!"),
-    ]
+    words = [(0.0, 0.4, " Idę", 0.9), (0.5, 0.9, " dalej.", 0.8), (5.0, 5.4, " Atakuję!", 0.7)]
+    assert split_on_pauses(words, max_pause=1.5) == [words[:2], words[2:]]
+
+
+def test_mean_speech_prob_covers_the_segment_frames() -> None:
+    frames = [0.0] * 10 + [1.0] * 10  # 32 ms frames
+    assert mean_speech_prob(frames, 10 * 0.032, 20 * 0.032) == 1.0
+    assert mean_speech_prob(frames, 5 * 0.032, 15 * 0.032) == 0.5
+    assert mean_speech_prob(frames, 30.0, 31.0) == 0.0  # past the end

@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import binascii
 import datetime as _dt
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,7 @@ def extract_snapshots(data: dict[str, Any], out_dir: Path) -> int:
     for old in out_dir.glob("shot_*"):
         old.unlink()
     written = 0
+    info: dict[str, dict[str, Any]] = {}
     for shot in data.get("snapshots", []):
         if not isinstance(shot, dict):
             continue
@@ -74,7 +76,15 @@ def extract_snapshots(data: dict[str, Any], out_dir: Path) -> int:
         while (out_dir / f"shot_{second}{suffix}").exists():
             second += 1  # two snapshots in the same second
         (out_dir / f"shot_{second}{suffix}").write_bytes(image)
+        info[f"shot_{second}{suffix}"] = {
+            key: shot[key] for key in ("reason", "scene", "title") if shot.get(key)
+        }
         written += 1
+    # What the recorder knew about each frame (scene name, handout title): the
+    # captioner gets it as a hint (visual.FRAME_INFO_FILE).
+    (out_dir / "snapshots.json").write_text(
+        json.dumps(info, indent=1, ensure_ascii=False), encoding="utf-8"
+    )
     return written
 
 
@@ -145,6 +155,47 @@ def _world_event(event: dict[str, Any]) -> tuple[str, str, str] | None:
     if kind == "music":
         return "Muzyka", "event", f"{event.get('track')} ({event.get('playlist')})"
     return None  # session/player bookkeeping, combat turns
+
+
+# Longer titles are descriptions ("Listy: List od Sydona"), not names to listen for.
+_MAX_NAME_WORDS = 4
+
+
+def session_names(data: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Names this session put on screen, for Whisper's hotwords: (people, scenes).
+
+    People: handout and journal titles (usually the NPC shown), then actors
+    (combatants, characters speaking or dropping). A rare NPC name the players
+    hear for the first time is exactly what Whisper mishears, and the
+    campaign's lists cannot know it yet. Scenes: the scene names ("Vallus
+    Chambers"), whose names the players say while they are there.
+    """
+    titles: list[str] = []
+    actors: list[str] = []
+    scenes: list[str] = []
+    for event in data.get("events", []):
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("kind")
+        if kind in ("handout", "journal"):
+            _add_name(titles, event.get("title"))
+        elif kind == "combat_start":
+            for name in event.get("combatants", []):
+                _add_name(actors, name)
+        elif kind == "down" or (kind == "chat" and event.get("actor")):
+            _add_name(actors, event.get("actor"))
+        elif kind == "player_join":
+            _add_name(actors, event.get("character"))
+        elif kind == "scene":
+            _add_name(scenes, event.get("scene"))
+    people = titles + [name for name in actors if name not in titles]
+    return people, scenes
+
+
+def _add_name(names: list[str], raw: object) -> None:
+    name = str(raw or "").strip()
+    if name and len(name.split()) <= _MAX_NAME_WORDS and name not in names:
+        names.append(name)
 
 
 def events_from_export(data: dict[str, Any], recording_start: int | None) -> list[ChatEvent]:

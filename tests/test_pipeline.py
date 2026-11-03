@@ -235,7 +235,7 @@ def test_foundry_snapshots_replace_screenshot_dir(
     (settings.downloads_dir / "session85.json").write_text(json.dumps(_export()), encoding="utf-8")
     settings.visual_caption_prompt_file = settings.quotes_prompt_file
 
-    pipeline._extract_foundry_snapshots(settings)
+    pipeline.extract_foundry_snapshots(settings)
     seen: dict[str, Any] = {}
     monkeypatch.setattr(pipeline, "caption_screenshots", lambda **kw: seen.update(kw) or [])
     pipeline._caption_session_screenshots(settings, settings.session_dir(85), "", 85)
@@ -243,3 +243,30 @@ def test_foundry_snapshots_replace_screenshot_dir(
     assert seen["screenshots_dir"] == settings.foundry_snapshots_dir
     assert seen["crop"] == ""
     assert len(list(settings.foundry_snapshots_dir.glob("shot_*.webp"))) == 3
+
+
+def test_claude_captioner_pauses_before_the_notes_until_frames_are_captioned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = _make_settings(tmp_path).model_copy(
+        update={"visual_captioner": "claude", "visual_dedupe": False, "visual_upload_max_dim": 0}
+    )
+    prompt = tmp_path / "prompts" / "visual_caption.txt"
+    prompt.write_text("Opisz.", encoding="utf-8")
+    settings = settings.model_copy(update={"visual_caption_prompt_file": prompt})
+    shots = settings.foundry_snapshots_dir
+    shots.mkdir(parents=True)
+    (shots / "shot_1800000060.webp").write_bytes(b"map")
+    transcript = settings.session_dir(85) / "transcript.txt"
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text("[MG]\nTekst.", encoding="utf-8")
+    monkeypatch.setattr(
+        pipeline, "run_transcription_workflow", lambda _s: (transcript, 85, None)
+    )
+    notes: list[int] = []
+    monkeypatch.setattr(pipeline, "_generate_notes", lambda *_a: notes.append(1))
+
+    pipeline.run_full_workflow(settings)
+
+    assert notes == []  # paused: one frame needs a caption
+    assert (settings.claude_captions_dir / "tasks.json").exists()

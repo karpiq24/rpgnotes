@@ -73,6 +73,26 @@ def test_combine_drops_only_silent_low_confidence_windows(tmp_path: Path) -> Non
     assert [s["text"] for s in combined] == ["Kentimane.", "Mówię cicho.", "Dobre."]
 
 
+def test_combine_drops_text_decoded_over_noise(tmp_path: Path) -> None:
+    transcripts, assets, mapping = _setup(tmp_path)
+    _write_segments(
+        transcripts / "1-karpiq24_0001.json",
+        [
+            # VAD barely heard speech and Whisper was unsure: invented text.
+            {"start": 1.0, "end": 2.0, "text": "Dzień dobry.", "speech_prob": 0.2, "word_prob": 0.4},
+            # Either signal alone is not enough: quiet speech, or a hard name.
+            {"start": 2.0, "end": 3.0, "text": "Mówię cicho.", "speech_prob": 0.2, "word_prob": 0.9},
+            {"start": 3.0, "end": 4.0, "text": "Kentimane.", "speech_prob": 0.9, "word_prob": 0.3},
+            # Transcripts written before these fields existed are kept.
+            {"start": 4.0, "end": 5.0, "text": "Stare."},
+        ],
+    )
+
+    combine_transcriptions(1, transcripts, assets, mapping)
+    combined = json.loads((assets / "001" / "transcript.json").read_text(encoding="utf-8"))
+    assert [s["text"] for s in combined] == ["Mówię cicho.", "Kentimane.", "Stare."]
+
+
 def test_combine_dedupes_consecutive_identical_text_from_same_speaker(tmp_path: Path) -> None:
     transcripts, assets, mapping = _setup(tmp_path)
     _write_segments(

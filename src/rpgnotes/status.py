@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .audio import read_recording_start
 from .chatlog import find_chat_log
+from .claude_captions import pending_captions
 from .config import Settings
 from .foundry import is_foundry_export
 from .manifest import imported_since_last_run
@@ -40,6 +41,8 @@ class SessionStatus:
     foundry_snapshots: int = 0
     screenshots: int = 0
     stale_screenshots: int = 0
+    # VISUAL_CAPTIONER=claude: exported frames still without a caption (None: not exported).
+    captions_pending: int | None = None
     api_key: bool = False
 
     @property
@@ -78,6 +81,8 @@ def collect_status(settings: Settings) -> SessionStatus:
     status.details = (session_assets_dir / "details.json").exists()
     status.quotes = (session_assets_dir / "quotes.json").exists()
     status.imported = imported_since_last_run(session_assets_dir)
+    if settings.visual_captioner == "claude":
+        status.captions_pending = pending_captions(settings, status.session_number)
 
     if status.temp_session == status.session_number:
         tracks = list(settings.audio_output_dir.glob("*.flac"))
@@ -161,6 +166,17 @@ def format_status(status: SessionStatus, settings: Settings) -> str:
         if status.stale_screenshots:
             line += f", {status.stale_screenshots} from an earlier session (skipped)"
         lines.append(line)
+
+    if settings.visual_captioner == "claude":
+        if status.captions_pending is None:
+            lines.append("  Captions     in Claude Code (/caption-frames), after transcription")
+        elif status.captions_pending:
+            lines.append(
+                f"  Captions     ✗ {status.captions_pending} map snapshot(s) to caption: "
+                "run /caption-frames in Claude Code"
+            )
+        else:
+            lines.append("  Captions     ✓ done in Claude Code")
 
     if status.api_key:
         lines.append(f"  Gemini       {settings.gemini_pro_model}, {settings.gemini_service_tier} tier")

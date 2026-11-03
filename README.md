@@ -168,13 +168,28 @@ rpgnotes ──► OUTPUT_DIR/<NNN>/ + manifest.json ──► OotD: /import-ses
 
 With the Foundry recorder module this is not needed: its map snapshots are used instead. Without it, `./run.sh capture` grabs the VTT screen during the game and the pipeline captions each frame into `[VISUAL HH:MM:SS] …` lines; setup, backends and flags are in [docs/screen-capture.md](docs/screen-capture.md).
 
+## Captioning the snapshots in Claude Code
+
+With `VISUAL_CAPTIONER=claude` in `.env` the map snapshots are described in a Claude Code session, not by Gemini, and the pipeline makes no caption calls:
+
+1. `./run.sh` transcribes as usual, then stops before the AI notes with *N map snapshot(s) need captions*. It has already put those frames into `TEMP_DIR/claude_captions/`: downscaled JPEGs, `tasks.json` and `instructions.md` (the caption prompt plus the glossary). `./run.sh captions-export` does the same step on its own.
+2. In Claude Code, in this repo, run `/caption-frames`. Haiku subagents caption the frames in parallel. Claude then compares a sample, including every handout, against the images and redoes with Sonnet any frame Haiku got wrong; it redoes all of them with Sonnet if the errors are systematic. The skill ends with `./run.sh captions-import`, which stores the captions where the pipeline keeps them (`temp/visual_caption_<N>_<ts>.txt`).
+3. `./run.sh` again: the captions go into the enriched transcript and the AI notes run.
+
+Each frame comes with what Foundry knew about it (scene name, handout title, from `foundry_snapshots/snapshots.json`), for both captioners. The status screen shows how many frames still lack a caption.
+
 ## Transcription
 
-How transcription works: each speaker's Craig track is run through Silero VAD, the speech regions are grouped into ≤30 s clips on the **original** timeline, and each clip is decoded by faster-whisper with word timestamps. Segments are split at pauses longer than 1.5 s, so speaker turns interleave at the right moments in `transcript.txt`. (faster-whisper's own `vad_filter` concatenates all speech into one stream; segment timestamps then smear across the removed silence — a 3-word line could span 7 minutes and land far out of order.) The combine step drops a segment only when Whisper's own rule says the window was silent (no-speech AND low confidence), plus repetition loops and known subtitle hallucinations, and logs how many words each reason removed.
+How transcription works: each speaker's Craig track is run through Silero VAD (blips under 250 ms are skipped), the speech regions up to 10 s apart are grouped into ≤30 s clips on the **original** timeline, and each clip is decoded by faster-whisper with word timestamps. Segments are split at pauses longer than 1.5 s, so speaker turns interleave at the right moments in `transcript.txt`. (faster-whisper's own `vad_filter` concatenates all speech into one stream; segment timestamps then smear across the removed silence — a 3-word line could span 7 minutes and land far out of order.) Each segment keeps its mean word probability and mean VAD speech probability.
+
+The combine step drops a segment when Whisper's own rule says the window was silent (no-speech AND low confidence), on repetition loops, on known subtitle/YouTube hallucinations (matched without diacritics: "Dziękuje za oglądanie", "do zobaczenia w kolejnym odcinku", "Zdjęcia i montaż", a lone "KONIEC"…), and when the VAD barely heard speech under it AND Whisper was unsure of its words (`noise`). It logs how many words each reason removed.
+
+These settings were chosen on session 85: three 8-minute excerpts of all six tracks, transcribed with each candidate setting and compared blind by Claude subagents block by block. large-v3 beat large-v2 and large-v3-turbo; clip gap 10 s beat 3 s and 15 s; the session's Foundry names in the hotwords beat the campaign list alone; skipping < 250 ms blips helped; beam 10 and previous-text conditioning did not pay off (the latter loops). The noise rule was calibrated on 266 hand-labeled segments.
 
 Key Whisper knobs:
 
 - **Hotwords**, not a free-form prompt: the campaign's hotwords list (`hotwords` in the campaign context; OotD keeps it in `campaign/whisper_hotwords.txt`) is prepended to *every* decode window (an `initial_prompt` only reaches the first 30 s window when previous-text conditioning is off, and is cut to its last ~223 tokens). The budget is ~150 tokens (~25–30 names), so list only names the ASR gets wrong; the startup log prints the packed list.
+- **Session names**: with a Foundry recorder file, the names this session put on screen come right after the campaign list: handout and journal titles (usually the NPC shown), combatants and speaking characters, then scene names. A new NPC is exactly the name Whisper mishears and the campaign list cannot know yet ("Zythion" came out as "Zytion", "Vallus" as "Walus").
 - `WHISPER_HOTWORDS_RECENT_SESSIONS` — names linked in the last N timeline sessions fill the rest of the hotword budget, most-linked first (default `3`; `0` = file only).
 
 - `WHISPER_MODEL` — `large-v3` by default; smaller variants (`small`, `medium`, `distil-large-v3`) are faster and lighter.

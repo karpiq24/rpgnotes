@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -187,44 +188,74 @@ def prepare_upload(
 
 
 # --------------------------------------------------------------------------
-# Captioning
+# Frame selection
 # --------------------------------------------------------------------------
 
+# Sidecar written next to the Foundry snapshots: {file name: {reason, scene, title}}.
+FRAME_INFO_FILE = "snapshots.json"
 
-def caption_screenshots(
-    *,
+
+@dataclass(frozen=True)
+class Frame:
+    """A screenshot chosen for captioning, placed on the recording timeline."""
+
+    path: Path
+    ts: int
+    is_key: bool
+    offset: float
+
+
+def caption_cache_file(temp_dir: Path, session_number: int, ts: int) -> Path:
+    """Where a frame's caption is kept: by Gemini, or imported from Claude Code."""
+    return temp_dir / f"visual_caption_{session_number}_{ts}.txt"
+
+
+def load_frame_info(screenshots_dir: Path) -> dict[str, dict[str, Any]]:
+    """The Foundry recorder's per-snapshot metadata ({} when absent or unreadable)."""
+    try:
+        raw = json.loads((screenshots_dir / FRAME_INFO_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+_REASONS = {
+    "handout": "pokazany graczom handout",
+    "scene": "zmiana sceny",
+    "combat": "początek walki",
+    "interval": "widok mapy",
+    "start": "początek nagrania",
+    "key": "kluczowy moment",
+}
+
+
+def frame_hint(info: dict[str, Any]) -> str:
+    """One line of known facts about a frame (scene name, handout title) for the captioner."""
+    parts = []
+    if info.get("reason"):
+        parts.append(f"Rodzaj: {_REASONS.get(str(info['reason']), str(info['reason']))}")
+    if info.get("scene"):
+        parts.append(f"Scena w Foundry: {info['scene']}")
+    if info.get("title"):
+        parts.append(f"Tytuł: {info['title']}")
+    return ("; ".join(parts) + ".\n") if parts else ""
+
+
+def select_frames(
     screenshots_dir: Path,
-    caption_prompt: str,
-    glossary: str,
-    model_name: str,
-    temp_dir: Path,
-    session_number: int,
-    visual_log_file: Path,
+    *,
     dedupe: bool = True,
     dedupe_threshold: float = 4.0,
-    api_sleep_secs: float = 0.0,
-    upload_max_dim: int = 1536,
-    upload_jpeg_quality: int = 80,
     crop: str = "",
     recording_start: int | None = None,
-) -> list[VisualEntry]:
-    """Caption session screenshots with Gemini Flash into a `visual_log.json`.
+) -> list[Frame]:
+    """The session's frames to caption, in time order, with their recording offsets.
 
-    Screenshot wall-clock timestamps (from `shot_<unix_ts>.png` filenames) are
-    mapped to recording offsets via `recording_start` (the Craig audio start —
-    the authoritative anchor shared with the transcript and chat log) when
-    given, else `session_start.txt`, else the earliest screenshot as t=0.
-    Per-frame captions are cached in `temp_dir` and the assembled log in
-    `visual_log_file`, so the step is resumable like the other pipeline steps.
+    Offsets come from `recording_start` (the Craig audio start, the anchor
+    shared with the transcript and chat log) when given, else
+    `session_start.txt`, else the earliest screenshot as t=0. Frames from an
+    earlier session are skipped and near-duplicates dropped (`dedupe`).
     """
-    if visual_log_file.exists():
-        log.info("Existing visual log found at %s. Loading it…", visual_log_file)
-        try:
-            raw = json.loads(visual_log_file.read_text(encoding="utf-8"))
-            return [VisualEntry.model_validate(item) for item in raw]
-        except Exception as e:
-            log.warning("Failed to load %s: %s. Re-captioning.", visual_log_file, e)
-
     shots: list[tuple[Path, int, bool]] = []
     for path in screenshots_dir.glob("shot_*"):
         parsed = parse_screenshot_timestamp(path)
@@ -266,19 +297,81 @@ def caption_screenshots(
     if dedupe:
         shots = _dedupe_frames(shots, dedupe_threshold, crop)
 
+    frames = []
+    for path, ts, is_key in shots:
+        offset = float(ts - session_start)
+        if offset < 0:
+            # Setup before the recording started: place it at the very beginning.
+            log.info("Screenshot %s predates the recording start. Placing it at 0.", path.name)
+            offset = 0.0
+        frames.append(Frame(path=path, ts=ts, is_key=is_key, offset=offset))
+    return frames
+
+
+# --------------------------------------------------------------------------
+# Captioning
+# --------------------------------------------------------------------------
+
+
+def caption_screenshots(
+    *,
+    screenshots_dir: Path,
+    caption_prompt: str,
+    glossary: str,
+    model_name: str | None,
+    temp_dir: Path,
+    session_number: int,
+    visual_log_file: Path,
+    dedupe: bool = True,
+    dedupe_threshold: float = 4.0,
+    api_sleep_secs: float = 0.0,
+    upload_max_dim: int = 1536,
+    upload_jpeg_quality: int = 80,
+    crop: str = "",
+    recording_start: int | None = None,
+) -> list[VisualEntry]:
+    """Caption session screenshots with Gemini Flash into a `visual_log.json`.
+
+    With `model_name` None the captions come from a Claude Code session
+    (`claude_captions`): frames without one are counted and no log is written,
+    so a later run picks up the captions imported in the meantime.
+
+    Screenshot wall-clock timestamps (from `shot_<unix_ts>.png` filenames) are
+    mapped to recording offsets via `recording_start` (the Craig audio start —
+    the authoritative anchor shared with the transcript and chat log) when
+    given, else `session_start.txt`, else the earliest screenshot as t=0.
+    Per-frame captions are cached in `temp_dir` and the assembled log in
+    `visual_log_file`, so the step is resumable like the other pipeline steps.
+    """
+    if visual_log_file.exists():
+        log.info("Existing visual log found at %s. Loading it…", visual_log_file)
+        try:
+            raw = json.loads(visual_log_file.read_text(encoding="utf-8"))
+            return [VisualEntry.model_validate(item) for item in raw]
+        except Exception as e:
+            log.warning("Failed to load %s: %s. Re-captioning.", visual_log_file, e)
+
+    frames = select_frames(
+        screenshots_dir, dedupe=dedupe, dedupe_threshold=dedupe_threshold, crop=crop,
+        recording_start=recording_start,
+    )
+    if not frames:
+        return []
+    info = load_frame_info(screenshots_dir)
+
     system_prompt = "\n\n".join(part.strip() for part in (caption_prompt, glossary) if part.strip())
 
     entries: list[VisualEntry] = []
     made_api_call = False
-    for path, ts, is_key in shots:
-        offset = float(ts - session_start)
-        if offset < 0:
-            log.warning("Screenshot %s predates session start. Clamping offset to 0.", path.name)
-            offset = 0.0
-
-        cache_file = temp_dir / f"visual_caption_{session_number}_{ts}.txt"
+    missing = 0
+    for frame in frames:
+        path, ts, is_key, offset = frame.path, frame.ts, frame.is_key, frame.offset
+        cache_file = caption_cache_file(temp_dir, session_number, ts)
         if cache_file.exists():
             caption = cache_file.read_text(encoding="utf-8").strip()
+        elif model_name is None:
+            missing += 1  # captioned from a Claude Code session, not by the pipeline
+            continue
         else:
             if made_api_call and api_sleep_secs > 0:
                 time.sleep(api_sleep_secs)
@@ -291,7 +384,8 @@ def caption_screenshots(
                     model=model_name,
                     contents=[
                         llm.image_part(data, mime_type),
-                        "Opisz ten zrzut ekranu z sesji zgodnie z instrukcją.",
+                        frame_hint(info.get(path.name, {}))
+                        + "Opisz ten zrzut ekranu z sesji zgodnie z instrukcją.",
                     ],
                     system_instruction=system_prompt,
                 ).strip()
@@ -309,6 +403,15 @@ def caption_screenshots(
             VisualEntry(offset_secs=offset, caption=caption, path=str(path), is_key=is_key)
         )
 
+    if missing:
+        # No visual_log.json: it would freeze the incomplete set.
+        log.warning(
+            "%d of %d map snapshot(s) have no caption yet. In Claude Code run /caption-frames, "
+            "then run again.",
+            missing,
+            len(frames),
+        )
+        return entries
     visual_log_file.parent.mkdir(parents=True, exist_ok=True)
     visual_log_file.write_text(
         json.dumps([entry.model_dump() for entry in entries], indent=2, ensure_ascii=False),

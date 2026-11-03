@@ -337,9 +337,11 @@ def test_prepare_upload_crops_before_resize(tmp_path: Path) -> None:
 
     out = tmp_path / "cropped.jpg"
     out.write_bytes(data)
-    magick = visual.shutil.which("magick") or visual.shutil.which("convert")
+    # ImageMagick 7 has `magick identify`; 6 (Ubuntu's) has a separate `identify`.
+    magick = visual.shutil.which("magick")
+    identify = [magick, "identify"] if magick else [visual.shutil.which("identify") or "identify"]
     proc = _subprocess.run(
-        [magick, "identify", "-format", "%wx%h", str(out)],
+        [*identify, "-format", "%wx%h", str(out)],
         capture_output=True,
         timeout=30,
         text=True,

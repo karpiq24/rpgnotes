@@ -11,6 +11,10 @@ class Segment(TypedDict, total=False):
     avg_logprob: float
     no_speech_prob: float
     compression_ratio: float
+    # Per segment (unlike the three window metrics above): mean Whisper word
+    # probability, and mean Silero VAD speech probability over the segment's span.
+    word_prob: float
+    speech_prob: float
 
 
 class TranscriberProtocol(Protocol):

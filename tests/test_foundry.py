@@ -92,11 +92,15 @@ def test_snapshots_are_extracted_with_key_markers(tmp_path: Path) -> None:
     out.mkdir()
     (out / "shot_1.webp").write_bytes(b"stale")
     assert foundry.extract_snapshots(_export(), out) == 3
-    assert sorted(p.name for p in out.iterdir()) == [
+    assert sorted(p.name for p in out.glob("shot_*")) == [
         "shot_1792425601.webp",
         "shot_1792425900_key.webp",
         "shot_1792425901_key.webp",  # same second as the handout: moved by one
     ]
+    info = json.loads((out / "snapshots.json").read_text(encoding="utf-8"))
+    assert set(info) == {
+        "shot_1792425601.webp", "shot_1792425900_key.webp", "shot_1792425901_key.webp"
+    }
 
 
 def test_wiki_copy_drops_image_data(tmp_path: Path) -> None:
@@ -120,3 +124,25 @@ def test_events_enrich_the_transcript() -> None:
     enriched = build_enriched_transcript(segments, [], events)
     assert "[CZAT 00:02:00] Giant Shark (rzut): Bite - Attack Roll" in enriched
     assert "[CZAT 00:04:00] Walka: Giant Shark pada (0 PW)" in enriched
+
+
+def test_session_names_lists_titles_then_actors_then_scenes() -> None:
+    people, scenes = foundry.session_names(_export())
+    # Handout/journal titles first, then actors in order seen; duplicates once,
+    # empty names (a player_join without character) skipped.
+    assert people == [
+        "Listy: List od Sydona",
+        "Arevon Elorrenthi",
+        "Giant Shark",
+        "Nephele",
+        "Sydon",
+        "Versir",
+        "Orestes",
+    ]
+    assert scenes == ["Thylea"]
+
+
+def test_session_names_skip_long_titles() -> None:
+    data = {"events": [{"kind": "handout", "title": "Mapa okolic starego portu w Mytros"},
+                       {"kind": "handout", "title": "Zythion"}]}
+    assert foundry.session_names(data) == (["Zythion"], [])

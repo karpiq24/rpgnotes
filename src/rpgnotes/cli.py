@@ -5,18 +5,24 @@ import logging
 import sys
 from collections.abc import Callable
 
+from .chatlog import find_chat_log
+from .claude_captions import import_captions
 from .config import Settings, load_settings
 from .logging_setup import setup_logging
 from .pipeline import (
     clear_temp_work,
+    export_claude_captions,
+    extract_foundry_snapshots,
     run_full_workflow,
     run_transcription_workflow,
+    temp_session,
 )
 from .status import SessionStatus, collect_status, format_status
+from .visual import FRAME_INFO_FILE
 
 log = logging.getLogger("rpgnotes")
 
-_COMMANDS = ("menu", "full", "transcribe", "status")
+_COMMANDS = ("menu", "full", "transcribe", "status", "captions-export", "captions-import")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -29,7 +35,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  menu        show the session found and ask what to do (default in a terminal)\n"
             "  full        transcribe + AI notes, no questions (default otherwise)\n"
             "  transcribe  transcription only, no Gemini calls\n"
-            "  status      show the session found and its progress, then exit"
+            "  status      show the session found and its progress, then exit\n"
+            "  captions-export  put the map snapshots to caption into TEMP_DIR/claude_captions\n"
+            "  captions-import  store the captions written there by /caption-frames"
         ),
     )
     parser.add_argument("command", nargs="?", choices=_COMMANDS, metavar="command")
@@ -104,6 +112,25 @@ def _run_menu(settings: Settings) -> int:
         action()
 
 
+def _captions(settings: Settings, command: str) -> int:
+    """`captions-export` / `captions-import` for the session in DOWNLOADS_DIR."""
+    info = find_chat_log(settings.downloads_dir)
+    if info is None:
+        log.error("No session file in %s.", settings.downloads_dir)
+        return 1
+    number = info.session_number
+    if temp_session(settings) != number:
+        log.error("Temp does not hold session %d yet: run ./run.sh first.", number)
+        return 1
+    if command == "captions-export":
+        if not (settings.foundry_snapshots_dir / FRAME_INFO_FILE).exists():
+            extract_foundry_snapshots(settings)  # unpacked before the sidecar existed
+        export_claude_captions(settings, number)
+        return 0
+    _imported, missing = import_captions(settings, number)
+    return 1 if missing else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     settings = load_settings()
@@ -124,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
             run_full_workflow(settings)
         elif command == "transcribe":
             run_transcription_workflow(settings)
+        elif command in ("captions-export", "captions-import"):
+            return _captions(settings, command)
     except KeyboardInterrupt:
         print("\nStopped. Run again to resume where it left off.")
         return 130
