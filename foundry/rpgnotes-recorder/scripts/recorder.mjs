@@ -547,19 +547,41 @@ function registerHooks() {
   });
 }
 
+/** Record one image shown to the players (and keep it as a key frame). */
+function recordHandout({ title, src, journal, caption }) {
+  if (!isRecorder() || !state.session || !src) return;
+  // The same image reaches us twice when one share path calls the other.
+  const now = Date.now();
+  if (state.lastHandout?.src === src && now - state.lastHandout.at < 3000) return;
+  state.lastHandout = { src, at: now };
+  record({ kind: "handout", title, src, journal, caption });
+  snapshotImage(src, title);
+}
+
 function wrapHandouts() {
   const ImagePopout = foundry.applications.apps.ImagePopout;
   const shareImage = ImagePopout.prototype.shareImage;
   ImagePopout.prototype.shareImage = function (...args) {
-    if (isRecorder() && state.session) {
-      const title = this.options?.caption || this.title;
-      record({ kind: "handout", title, src: this.options?.src });
-      snapshotImage(this.options?.src, title);
-    }
+    recordHandout({ title: this.options?.caption || this.title, src: this.options?.src });
     return shareImage.apply(this, args);
   };
 
   const Journal = foundry.documents.collections.Journal;
+  // "Show Players" on a journal image page (shown as an image) and other
+  // direct image shares go through Journal.showImage, not Journal.show or
+  // ImagePopout#shareImage: session 85's scene illustrations were all lost.
+  const showImage = Journal.showImage;
+  Journal.showImage = function (src, options = {}) {
+    const doc = options.uuid ? fromUuidSync(options.uuid) : null;
+    const page = doc?.documentName === "JournalEntryPage" ? doc : null;
+    recordHandout({
+      title: options.title || page?.name || doc?.name,
+      src,
+      journal: page?.parent?.name,
+      caption: page?.image?.caption ? plainText(page.image.caption, MAX_JOURNAL_CHARS) : undefined,
+    });
+    return showImage.call(this, src, options);
+  };
   const show = Journal.show;
   Journal.show = function (entry, options) {
     if (isRecorder() && state.session && entry) {

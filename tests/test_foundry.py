@@ -146,3 +146,21 @@ def test_session_names_skip_long_titles() -> None:
     data = {"events": [{"kind": "handout", "title": "Mapa okolic starego portu w Mytros"},
                        {"kind": "handout", "title": "Zythion"}]}
     assert foundry.session_names(data) == (["Zythion"], [])
+
+
+def test_journal_illustration_shows_its_journal_and_counts_as_a_scene() -> None:
+    data = {
+        "format": foundry.FORMAT,
+        "startedAt": "2026-10-19T15:59:00.000Z",
+        "events": [
+            {"kind": "handout", "title": "Panorama Thylei", "journal": "Rozdział 7",
+             "t": "2026-10-19T16:00:00.000Z"},
+            {"kind": "handout", "title": "Zythion", "t": "2026-10-19T16:01:00.000Z"},
+        ],
+    }
+    texts = [e.text for e in foundry.events_from_export(data, recording_start=None)]
+    assert texts == [
+        "pokazano graczom obraz: Panorama Thylei (dziennik: Rozdział 7)",
+        "pokazano graczom obraz: Zythion",
+    ]
+    assert foundry.session_names(data) == (["Zythion"], ["Panorama Thylei"])

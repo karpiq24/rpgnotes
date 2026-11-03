@@ -146,7 +146,12 @@ def _world_event(event: dict[str, Any]) -> tuple[str, str, str] | None:
     if kind == "down":
         return "Walka", "event", f"{event.get('actor')} pada (0 PW)"
     if kind == "handout":
-        return "Handout", "event", f"pokazano graczom obraz: {event.get('title') or 'bez tytułu'}"
+        text = f"pokazano graczom obraz: {event.get('title') or 'bez tytułu'}"
+        if event.get("journal"):
+            text += f" (dziennik: {event['journal']})"
+        if event.get("caption"):
+            text += f" — {event['caption']}"
+        return "Handout", "event", text
     if kind == "journal":
         text = f"pokazano graczom dziennik: {event.get('title')}"
         if event.get("text"):
@@ -168,7 +173,8 @@ def session_names(data: dict[str, Any]) -> tuple[list[str], list[str]]:
     (combatants, characters speaking or dropping). A rare NPC name the players
     hear for the first time is exactly what Whisper mishears, and the
     campaign's lists cannot know it yet. Scenes: the scene names ("Vallus
-    Chambers"), whose names the players say while they are there.
+    Chambers"), whose names the players say while they are there, and the
+    titles of scene illustrations shown from a journal.
     """
     titles: list[str] = []
     actors: list[str] = []
@@ -177,7 +183,10 @@ def session_names(data: dict[str, Any]) -> tuple[list[str], list[str]]:
         if not isinstance(event, dict):
             continue
         kind = event.get("kind")
-        if kind in ("handout", "journal"):
+        if kind == "handout" and event.get("journal"):
+            # A scene illustration from a journal ("Panorama Thylei"), not a person.
+            _add_name(scenes, event.get("title"))
+        elif kind in ("handout", "journal"):
             _add_name(titles, event.get("title"))
         elif kind == "combat_start":
             for name in event.get("combatants", []):
