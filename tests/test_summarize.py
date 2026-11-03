@@ -45,3 +45,22 @@ def test_generate_quotes_requests_structured_output_with_transcript(
     assert kwargs["schema"] is QuotesData
     assert "THE TRANSCRIPT" in kwargs["contents"]
     assert QuotesData.model_validate_json(cache.read_text(encoding="utf-8")) == _QUOTES_PAYLOAD
+
+
+def test_generate_quotes_puts_party_and_glossary_in_system_prompt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = MagicMock(return_value=_QUOTES_PAYLOAD)
+    monkeypatch.setattr(gemini.llm, "generate_structured", fake)
+
+    gemini.generate_quotes(
+        transcript_content="…",
+        quotes_prompt="QUOTES PROMPT",
+        model_name="gemini-flash",
+        cache_file=tmp_path / "quotes.json",
+        campaign_rules="# Drużyna (postacie graczy)",
+        glossary="# Glosariusz sesji (nazwy kanoniczne)",
+    )
+
+    system = fake.call_args.kwargs["system_instruction"]
+    assert system.index("QUOTES PROMPT") < system.index("# Drużyna") < system.index("# Glosariusz")

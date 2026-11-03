@@ -42,7 +42,7 @@ class SessionData(BaseModel):
 class QuotesData(BaseModel):
     quotes: list[str] = Field(
         description=(
-            "Lista 5-7 najbardziej pamiętnych, zabawnych lub ważnych cytatów z sesji, "
-            'wraz z informacją, kto je wypowiedział, w formacie \'Postać: "cytat"\'.'
+            "Lista 10-15 kandydatów na cytaty: kwestie wypowiedziane w roli, rozłożone po "
+            "całej sesji, w kolejności chronologicznej, w formacie 'Postać: \"cytat\"'."
         )
     )

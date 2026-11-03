@@ -498,7 +498,8 @@ def _generate_notes_with_client(
             quotes_prompt=settings.quotes_prompt_file.read_text(encoding="utf-8"),
             model_name=settings.gemini_flash_model,
             cache_file=quotes_cache,
-            campaign_rules=render_campaign_rules(context),
+            campaign_rules=campaign_rules,
+            glossary=build_session_glossary(context, include_phonetic=False),
         )
     except Exception as e:
         log.error("Failed to extract quotes: %s", e)

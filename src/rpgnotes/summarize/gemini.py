@@ -448,8 +448,12 @@ def generate_quotes(
     model_name: str,
     cache_file: Path,
     campaign_rules: str = "",
+    glossary: str = "",
 ) -> QuotesData:
-    """Extract memorable quotes from the transcript. Reads from `cache_file` if present."""
+    """Extract quote candidates from the transcript. Reads from `cache_file` if present.
+
+    The `glossary` gives the canonical NPC names used as speaker labels.
+    """
     if cache_file.exists():
         log.info("Existing quotes found at %s. Loading it…", cache_file)
         try:
@@ -463,7 +467,7 @@ def generate_quotes(
         contents=f"PEŁNA TRANSKRYPCJA:\n{transcript_content}",
         schema=QuotesData,
         system_instruction="\n\n".join(
-            part.strip() for part in (quotes_prompt, campaign_rules) if part.strip()
+            part.strip() for part in (quotes_prompt, campaign_rules, glossary) if part.strip()
         ),
     )
     log.info("Quotes extracted.")
