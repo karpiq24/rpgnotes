@@ -200,3 +200,27 @@ def test_polish_pass_runs_when_enabled(monkeypatch: pytest.MonkeyPatch, tmp_path
     )
     assert summary == "WYPOLEROWANE PODSUMOWANIE"
     assert fake.call_count == 2
+
+
+def test_chunked_summary_passes_headings_forward(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = _fake_llm(monkeypatch)
+    gemini.generate_summary_chunked(
+        transcript_content=_make_transcript(turns=30, lines_per_turn=10),
+        style_rules="STYL",
+        anti_hallucination="ZAKAZY",
+        glossary="",
+        model_name="gemini-pro",
+        temp_dir=tmp_path / "temp",
+        session_number=7,
+        cache_file=tmp_path / "summary.txt",
+        chunk_lines=100,
+        polish_pass=False,
+    )
+
+    assert fake.call_count > 2
+    assert "NAGŁÓWKI DOTYCHCZAS" not in fake.call_args_list[0].kwargs["contents"]
+    third = fake.call_args_list[2].kwargs["contents"]
+    assert "### Sekcja 1\n### Sekcja 2" in third
+    assert "BIEŻĄCA SEKCJA: ### Sekcja 2" in third

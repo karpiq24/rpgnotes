@@ -28,13 +28,30 @@ tylko po to, żeby tekst był dłuższy.
 **Podsumowanie MUSI być podzielone na sekcje z nagłówkami `###` i akapitami.**
 
 Każda sekcja powinna:
-- Mieć krótki, opisowy nagłówek `###` (np. `### Kurs ku Otchłani i Problem Szpiega`)
-- Zawierać 2-4 akapity opisujące wydarzenia tej części sesji (wyjątkowo 1 —
-  tylko gdy sekcja opisuje jedno naprawdę istotne, wyraźnie odrębne wydarzenie)
+- Mieć krótki nagłówek `###`, który nazywa scenę: miejsce albo główne
+  wydarzenie (np. `### Audiencja u Królowej Vallus`, `### Obóz pod Arezją
+  i Aresztowanie Tarana`). Nagłówek nie wylicza wszystkich wątków sekcji
+  (źle: `### Rada, Uczta i Pościg`) i nie jest ozdobnikiem bez treści
+  (źle: `### Mroczne Przeczucia`); najwyżej dwa człony połączone „i”
+- Zawierać co najmniej 2 akapity; długa scena może mieć ich więcej. Jedna
+  sekcja z jednym akapitem tylko wtedy, gdy opisuje jedno istotne, wyraźnie
+  odrębne wydarzenie
+- Mieć akapity, z których każdy obejmuje jeden etap sceny: zaczyna się od
+  tego, kto i gdzie (albo co się zmieniło), a kończy na ostatnim wydarzeniu
+  tego etapu. Nie urywaj myśli w połowie akapitu i nie rób akapitów z jednego
+  zdania; zbyt długi akapit podziel w naturalnym miejscu
 - Grupować powiązane wątki: łącz sąsiadujące, powiązane sceny pod jednym
   nagłówkiem. Nowy nagłówek zakładaj dopiero przy realnej zmianie (nowy wątek,
   nowa lokacja, przełomowe wydarzenie) — do każdej sekcji powstaje później
   osobna ilustracja, więc mniej, gęstszych sekcji jest lepsze niż wiele drobnych
+- Obejmować całą scenę: jedno miejsce i ciągła akcja to jedna sekcja, nawet
+  długa (cały wieczór w barze, cała audiencja z naradą po niej, całe wejście
+  do obozu aż po aresztowanie). Nie dziel sceny w połowie rozmowy i nie wydzielaj
+  osobno jej końcówki (np. „plan podróży” po audiencji)
+- Typowa sesja (3–4 godziny gry) to 5–7 sekcji; więcej tylko wtedy, gdy sesja
+  naprawdę skacze między wieloma miejscami. Kilka krótkich wątków
+  pobocznych (np. sceny wprowadzające poszczególnych bohaterów) zbierz w jedną
+  sekcję
 
 **Przykład struktury:**
 

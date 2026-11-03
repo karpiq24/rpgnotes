@@ -30,10 +30,24 @@ kontekst (nie opisuj ponownie tych wydarzeń).
 Zachowuj ściśle chronologię wydarzeń wewnątrz fragmentu — nigdy nie zmieniaj
 ich kolejności.
 
+Sekcje i granice fragmentów: fragment to tylko kawałek transkrypcji o stałej
+długości, a nie scena, więc granica fragmentu nie jest powodem do nowej sekcji.
+- Pierwszy fragment sesji (1/N) zawsze zaczyna się od nagłówka `###`.
+- W kolejnych fragmentach dostajesz NAGŁÓWKI DOTYCHCZAS: sekcje już napisane,
+  ostatnia z nich to BIEŻĄCA SEKCJA. Jeśli fragment zaczyna się w środku tej sceny
+  (to samo miejsce, ta sama rozmowa, ten sam wątek), zacznij NARRATIVE od akapitów
+  BEZ nagłówka: zostaną doklejone do bieżącej sekcji. Nie przedstawiaj wtedy
+  ponownie postaci ani miejsca i nie streszczaj tego, co już opisano.
+- Nowy nagłówek `###` daj tylko tam, gdzie zaczyna się nowa scena: inne miejsce,
+  inny wątek albo wyraźny przeskok w czasie. Nie powtarzaj nagłówka, który już
+  był, ani jego wariantu.
+- Zwykle fragment ma 0–2 nagłówki; więcej tylko przy kilku naprawdę odrębnych
+  scenach. Krótkiej sceny nie wydzielaj — dołącz ją do sąsiedniej.
+
 Odpowiedz DOKŁADNIE w tym formacie (bez żadnego innego tekstu):
 
 NARRATIVE:
-<1-4 sekcje `###` z akapitami, zgodnie z zasadami stylu>
+<akapity, z nagłówkami `###` tylko na początku nowych scen, zgodnie z zasadami stylu>
 
 ROLLING_SUMMARY:
 <3-5 punktów podsumowujących stan fabuły PO tym fragmencie — kto gdzie jest,
@@ -54,11 +68,25 @@ ZAKAZY (bezwzględne):
 - NIE zmieniaj kolejności wydarzeń ani sekcji.
 - NIE dodawaj nowych wydarzeń, detali ani interpretacji.
 - NIE usuwaj wydarzeń; możesz jedynie skracać rozwlekłe sformułowania.
-- Zachowaj strukturę nagłówków `###` (możesz poprawić brzmienie nagłówka,
-  nie jego sens).
+- Nagłówki `###`: możesz poprawić ich brzmienie i połączyć sąsiednie sekcje,
+  które opisują tę samą scenę (to samo miejsce i wątek, podział na łączeniu
+  fragmentów) — wtedy zostaje jeden nagłówek, który nazywa całą scenę.
+  Nie dziel sekcji i nie przenoś akapitów między niesąsiednimi miejscami.
+- Akapity: na łączeniach fragmentów możesz scalić urwany akapit z następnym
+  albo podzielić zbyt długi w naturalnym miejscu, zgodnie z zasadami stylu.
 
 Zwróć tylko poprawiony tekst podsumowania, bez komentarzy.
 """.strip()
+
+
+def _headings(narratives: list[str]) -> list[str]:
+    """The `###` section headings written so far, in order."""
+    return [
+        line.strip()
+        for narrative in narratives
+        for line in narrative.splitlines()
+        if line.lstrip().startswith("###")
+    ]
 
 
 def _parse_chunk_response(text: str) -> tuple[str, str]:
@@ -162,6 +190,13 @@ def generate_summary_chunked(
             )
         if rolling:
             parts.append(f"ROLLING_SUMMARY (wydarzenia z wcześniejszych fragmentów):\n{rolling}\n\n---\n")
+        headings = _headings(narratives)
+        if headings:
+            parts.append(
+                "NAGŁÓWKI DOTYCHCZAS:\n"
+                + "\n".join(headings)
+                + f"\nBIEŻĄCA SEKCJA: {headings[-1]}\n\n---\n"
+            )
         parts.append(
             f"FRAGMENT TRANSKRYPCJI ({index}/{len(chunks)}):\n{chunk}"
         )
