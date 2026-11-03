@@ -173,7 +173,7 @@ With the Foundry recorder module this is not needed: its map snapshots are used 
 With `VISUAL_CAPTIONER=claude` in `.env` the map snapshots are described in a Claude Code session, not by Gemini, and the pipeline makes no caption calls:
 
 1. `./run.sh` transcribes as usual, then stops before the AI notes with *N map snapshot(s) need captions*. It has already put those frames into `TEMP_DIR/claude_captions/`: downscaled JPEGs, `tasks.json` and `instructions.md` (the caption prompt plus the glossary). `./run.sh captions-export` does the same step on its own.
-2. In Claude Code, in this repo, run `/caption-frames`. Haiku subagents caption the frames in parallel. Claude then compares a sample, including every handout, against the images and redoes with Sonnet any frame Haiku got wrong; it redoes all of them with Sonnet if the errors are systematic. The skill ends with `./run.sh captions-import`, which stores the captions where the pipeline keeps them (`temp/visual_caption_<N>_<ts>.txt`).
+2. In Claude Code, in this repo, run `/caption-frames`. Sonnet subagents caption the frames in parallel (about 8 frames each), with no review pass: on session 85, Haiku plus a spot check saved little and missed on-screen text that Sonnet reads. The skill ends with `./run.sh captions-import`, which stores the captions where the pipeline keeps them (`temp/visual_caption_<N>_<ts>.txt`).
 3. `./run.sh` again: the captions go into the enriched transcript and the AI notes run.
 
 Each frame comes with what Foundry knew about it (scene name, handout title, from `foundry_snapshots/snapshots.json`), for both captioners. The status screen shows how many frames still lack a caption.

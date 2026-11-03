@@ -2,7 +2,7 @@
 
 `export_caption_tasks` puts the frames still missing a caption into
 `TEMP_DIR/claude_captions/` (downscaled JPEGs, `tasks.json`, `instructions.md`);
-the `/caption-frames` skill has Claude subagents write one caption file per
+the `/caption-frames` skill has Sonnet subagents write one caption file per
 frame into its `captions/` folder; `import_captions` checks them and stores
 them where the pipeline keeps captions (`visual.caption_cache_file`), so the
 next run uses them without any caption API call.
